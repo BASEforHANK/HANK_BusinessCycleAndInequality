@@ -115,27 +115,29 @@ julia> n_par = NumericalParameters(mmin = -6.6, mmax = 1000)
 ```
 """
 @with_kw struct NumericalParameters
-	# careful! some of these values overwritten in find_SS.jl
-	ny::Int         = 2    # ngrid income
+	# Parameters to be set
 	ny_refined::Int = 21   # ngrid income for refinement
 	nk::Int         = 80   # ngrid capital
 	nm::Int         = 80
-	nstates::Int    = ny + nk + nm + 14
-	naggrstates::Int = 16
-	naggrcontrols::Int=16
-	ncontrols::Int=16
-	ntotal::Int = 100
-	naggr::Int = 14
-	aggr_names::Array{String,1}=["AHHH"]
 	kmin::Float64   = 0.0   # gridmin capital
 	kmax::Float64   = 1500.0  # gridmax capital
-	mmin::Float64   = 0.0#-2.0   # gridmin capital
-	mmax::Float64   = 1500.0  # gridmax capital
-	ϵ::Float64      = 1e-14 # precision
+	mmin::Float64   = -6.6   # gridmin capital
+	mmax::Float64   = 1000.0  # gridmax capital
 	useMATLAB::Bool = false # use MATLAB eigs for finding stationary distribution
 	use_parallel::Bool = false # parallel loop over income states
 	sol_algo::Symbol = :schur # other options: :schur and :lit
+	reduc::Float64           = 1e-5
 
+	# Parameters that will be overwritten in the code
+	ny::Int         = 2    # ngrid income
+	nstates::Int    = ny + nk + nm + 14
+	naggrstates::Int   = 16
+	naggrcontrols::Int = 16
+	ncontrols::Int	   = 16
+	ntotal::Int = 100
+	naggr::Int = 14
+	aggr_names::Array{String,1}=["AHHH"]
+	ϵ::Float64      = 1.0e-5 # precision
 	Π::Matrix{Float64}       = [0.9 0.1; 0.1 0.9] # transition matrix income
 	grid_y::Array{Float64,1} = [0.5; 1.5]         # income grid
 	grid_k::Array{Float64,1} = exp.(range(log(kmin+1.0), stop = log(kmax+1.0), length = nk)) .- 1.0
@@ -143,7 +145,6 @@ julia> n_par = NumericalParameters(mmin = -6.6, mmax = 1000)
 	mesh_y::Array{Float64,3} = repeat(reshape(grid_y,(1,1,ny)),outer=[nm, nk, 1])
 	mesh_m::Array{Float64,3} = repeat(reshape(grid_m,(nm,1,1)),outer=[1, nk, ny])
 	mesh_k::Array{Float64,3} = repeat(reshape(grid_k,(1,nk,1)),outer=[nm, 1, ny])
-	reduc::Float64           = 1e-5
 	bounds_y::Array{Float64,1} = [0.5; 1; 1.5]
 	H::Float64           = 1.0
 	Asel::Array{Bool,2} = falses(10,10)
@@ -185,11 +186,11 @@ stored in the fields `mode_start_file`, `data_file`, `save_mode_file` and `save_
 	meas_error_distr::Array{InverseGamma{Float64}, 1} = [InverseGamma(ig_pars(0.05, 0.1^2)...),InverseGamma(ig_pars(0.0005, 0.001^2)...),
 	InverseGamma(ig_pars(0.0005, 0.001^2)...)]
 
-	mode_start_file::String = "Saves/hank_2asset_mcmc_1901_baseline_chain_all_commit.jld2"
+	mode_start_file::String = "../Saves/hank_2asset_mcmc_1901_baseline_chain_all_commit.jld2"
 
 	data_file::String = "bbl_data_inequality.csv"
-	save_mode_file::String = "Saves/hank_2asset_mode_1202_baseline.jld2"
-	save_posterior_file::String = "Saves/hank_2asset_mcmc_1202_baseline.jld2"
+	save_mode_file::String = "../saves/hank_2asset_mode_1202_baseline.jld2"
+	save_posterior_file::String = "../saves/hank_2asset_mcmc_1202_baseline.jld2"
 
 	fd_flag::Bool = any(growth_rate_select)
 	max_iter_mode::Int = 60
