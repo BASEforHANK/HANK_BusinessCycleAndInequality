@@ -10,7 +10,7 @@ sr = load_steadystate()
 
 # lr = linearize_full_model(sr)
 # @save "linearresults.jld2" lr
-@load "linearresults.jld2"
+@load "Saves/linearresults.jld2"
 
 # warning: estimation might take a long time!
 # er = find_mode(sr,lr)

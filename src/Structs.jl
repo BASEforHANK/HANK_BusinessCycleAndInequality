@@ -186,11 +186,11 @@ stored in the fields `mode_start_file`, `data_file`, `save_mode_file` and `save_
 	meas_error_distr::Array{InverseGamma{Float64}, 1} = [InverseGamma(ig_pars(0.05, 0.1^2)...),InverseGamma(ig_pars(0.0005, 0.001^2)...),
 	InverseGamma(ig_pars(0.0005, 0.001^2)...)]
 
-	mode_start_file::String = "../Saves/hank_2asset_mcmc_1901_baseline_chain_all_commit.jld2"
+	mode_start_file::String = "Saves/hank_2asset_mcmc_1901_baseline_chain_all_commit.jld2"
 
 	data_file::String = "bbl_data_inequality.csv"
-	save_mode_file::String = "../saves/hank_2asset_mode_1202_baseline.jld2"
-	save_posterior_file::String = "../saves/hank_2asset_mcmc_1202_baseline.jld2"
+	save_mode_file::String = "Saves/hank_2asset_mode_1202_baseline.jld2"
+	save_posterior_file::String = "Saves/hank_2asset_mcmc_1202_baseline.jld2"
 
 	fd_flag::Bool = any(growth_rate_select)
 	max_iter_mode::Int = 60

@@ -52,8 +52,7 @@ grid_y          = [exp.(grid_y .* m_par.σ_h ./ sqrt(1.0 .- m_par.ρ_h.^2));
 Paux            = Π^1000
 H               = (Paux[1,1:end-1]'*grid_y[1:end-1])
 # Numerical parameters
-n_par           = NumericalParameters(ny = ny+1, kmax = 1500, bounds_y = bounds,
-                    mmin =-6.6, mmax = 1000, ϵ = 1e-5, grid_y = grid_y, Π=Π,H=H)
+n_par           = NumericalParameters(ny = ny+1, bounds_y = bounds, grid_y = grid_y, Π = Π, H = H)
 
 n_par.grid_m[sum(n_par.grid_m.<0)] = 0.0 # Make sure zero is on the m grid (liquid asset)
 n_par.mesh_m   .= repeat(reshape(n_par.grid_m, (n_par.nm, 1, 1)),
