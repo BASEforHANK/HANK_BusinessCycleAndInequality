@@ -3,27 +3,30 @@
 This manual documents the Julia module **HANKEstim**, that implements a Bayesian likelihood
 estimation of a heterogeneous-agent New-Keynesian (HANK) model. It accompanies the paper
 [Shocks, Frictions, and Inequality in US Business Cycles](https://www.benjaminborn.de/publication/bbl_inequality_2020/).
-## Basic usage
-The module runs with Julia 1.4. To use the toolbox in a Julia script, move the script to the directory that contains the folder `HANKEstim`, make sure that the folder is the present working directory and write
+## First steps
+The module runs with Julia 1.4. We recommend to use the [Juno IDE](https://junolab.org) as a front-end to Julia. Please first install all packages listed at the top of `HANKEstim.jl`. To get started with the toolbox, it is easiest to use the `script.jl` Julia script in the `src` folder. Make sure that the folder is the present working directory and write
 ```
 push!(LOAD_PATH, pwd())
 using HANKEstim
 ```
-!!! note
+```@meta
+# !!! note
+#
+#    Instead of pushing the current directory to `LOAD_PATH` at runtime, one can also move the folder `HANKEstim` to
+#    the place where packages are stored in the local Julia environment.
+```
 
-    Instead of pushing the current directory to `LOAD_PATH` at runtime, one can also move the folder `HANKEstim` to
-    the place where packages are stored in the local Julia environment.
+This loads the HANKEstim module that is defined in `HANKEstim.jl`. `HANKEstim.jl` is the key module file as it loads in the code base, sets up structures, and exports a number of functions and macros.
 
-You might also have to install a number of packages that are listed at the top of `HANKEstim.jl`.
-
-The estimation proceeds in three main steps. First, we solve the steady state of the model, and reduce the
-dimensionality of the state space [^BL]. Secondly, we compute the linearized dynamics of the model
-around the steady state. Thirdly, we construct the likelihood of the model parameters given data,
-and use Bayesian methods to estimate them.
+The provided `script.jl` then shows how a typical estimation proceeds in three main steps. First, we solve the steady state of the model, and reduce the dimensionality of the state space [^BL]. Secondly, we compute the linearized dynamics of the model around the steady state. Thirdly, we construct the likelihood of the model parameters given data, and use Bayesian methods to estimate them. More details on the three steps are provided in the menu on the left. The end of `script.jl` provides an example on how to plot some impulse response functions from the model.
 
 ### Setting up your model
 
-To define the aggregate part of the model, include the aggregate model block in `input_aggregate_model.jl`. States and controls have to be listed in `include_aggregate_names` and their steady states in `input_aggregate_steady_state`. Include model parameters in `struct ModelParameters` in `Struct.jl`.
+To define the aggregate part of the model, include the aggregate model block in `input_aggregate_model.jl`. States and controls have to be listed in `include_aggregate_names` and their steady states in `input_aggregate_steady_state`. Include model parameters in `struct ModelParameters` in `Structs.jl`.
+
+The file `Structs.jl` contains three structures to provide model parameters, numerical parameters, and estimation settings. In additon, it contains two macros that automatically create structures that contain the model variables.
+
+In the first structure, each model parameter has a line of code. It starts with the parameter name as it is used in the code and a default value. The next two entries are its ascii name and its name for LaTeX output. The fourth entry is the prior if the parameter is to be estimated. Please see the [Distributions.jl](https://github.com/JuliaStats/Distributions.jl)-package for available options. The fifth entry is a Boolean whether the parameter should be estimated (`true`) or not (`false`)
 
 !!! note
 
