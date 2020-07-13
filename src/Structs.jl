@@ -16,7 +16,7 @@ julia> # Obtain vector of prior distributions of parameters that are estimated.
 julia> priors = collect(metaflatten(m_par, prior))
 ```
 """
-@flattenable @prior @latex_label @label @with_kw struct ModelParameters{T}
+@label @latex_label @prior @flattenable @with_kw struct ModelParameters{T}
 	# Household preference parameters
 	ξ::T = 4.0    | "xi" | L"\xi" | _  | false  # risk aversion
 	γ::T = 2.0    | "gamma" | L"\gamma" |  _  | false  # inverse Frisch elasticity
