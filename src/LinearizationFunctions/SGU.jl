@@ -42,13 +42,19 @@ function SGU(XSS::Array,A::Array,B::Array, m_par::ModelParameters, n_par::Numeri
     DC[3]  = mydctmx(n_par.ny)
     IDC    = [DC[1]', DC[2]', DC[3]']
 
+    DCD = Array{Array{Float64,2},1}(undef,3)
+    DCD[1]  = mydctmx(n_par.nm-1)
+    DCD[2]  = mydctmx(n_par.nk-1)
+    DCD[3]  = mydctmx(n_par.ny-1)
+    IDCD    = [DCD[1]', DCD[2]', DCD[3]']
+
     ############################################################################
     # Check whether Steady state solves the difference equation
     ############################################################################
     length_X0 = indexes.profits # Convention is that profits is the last control
     X0 = zeros(length_X0) .+ ForwardDiff.Dual(0.0,tuple(zeros(n_FD)...))
     @make_deriv n_FD
-    F  = Fsys(X0,X0,XSS,m_par,n_par,indexes,Γ,compressionIndexes,DC,IDC, Copula)
+    F  = Fsys(X0,X0,XSS,m_par,n_par,indexes,Γ,compressionIndexes,DC, IDC, DCD, IDCD)
     # if maximum(abs.(F))/10>n_par.ϵ
     #     @warn  "F=0 is not at required precision"
     # end
@@ -117,6 +123,7 @@ function SGU(XSS::Array,A::Array,B::Array, m_par::ModelParameters, n_par::Numeri
             diff1 = 1000.0
             i = 0
             Mat = copy(BB)
+            @timev begin
             while abs(diff1)>1e-6 && i<1000
                 Mat[:,1:n_par.nstates] = BB[:,1:n_par.nstates] .+ CC * F0
                 F00 = Mat \ (-AA)
@@ -125,9 +132,65 @@ function SGU(XSS::Array,A::Array,B::Array, m_par::ModelParameters, n_par::Numeri
                 F0 .= F00
                 i += 1
             end
+            end
             hx = F0[1:n_par.nstates,1:n_par.nstates]
             gx = F0[n_par.nstates+1:end,1:n_par.nstates]
+            println(i)
+            println("lit")
+            nk = n_par.nstates
+            alarm_sgu = false
+        end
+    elseif n_par.sol_algo == :litx
+         @views begin
+                        # Formula X_{t+1} = [X11 X12;X21 X22] = inv(BB + CC*X_t)*[F3 0]
+            # implies X21=0, X22 = 0
+            # use of Woodburry-Morrison-Shermann
+            # X21_{t+1} =  
+            F1 = A[:, 1:n_par.nstates]
+            F2 = A[:, n_par.nstates+1:end]
+            F3 = -B[:, 1:n_par.nstates]
+            F4 = B[:, n_par.nstates+1:end]
+            BB = hcat(F1, F4)
 
+            #AA = F3 #hcat(F3, zeros(n_par.ntotal,n_par.ncontrols))
+            #CC = hcat(zeros(n_par.ntotal,n_par.nstates),F2)
+            Z  = BB\I # inverse of BB
+
+            #X11 = zeros(n_par.nstates, n_par.nstates)
+            X21 = zeros(n_par.ncontrols, n_par.nstates)
+            X21up = zeros(n_par.ncontrols, n_par.nstates)
+
+            #Z11 = Z[1:n_par.nstates,1:n_par.nstates]
+            #Z21 = Z[n_par.nstates+1:end,1:n_par.nstates]
+            #Z12 = Z[1:n_par.nstates,n_par.nstates+1:end]
+            #Z22 = Z[n_par.nstates+1:end,n_par.nstates+1:end]
+
+            #X11[1:n_par.nstates, 1:n_par.nstates]   .= n_par.LOMstate_save
+            X21[1:n_par.ncontrols, 1:n_par.nstates] .= n_par.State2Control_save
+
+            diff1 = 1000.0
+            i = 0
+            Q1 = Z[1:n_par.nstates,:]*F2 #[Z11 Z12] * F2
+            Q2 = Z[n_par.nstates+1:end,:]*F2#[Z21 Z22] * F2
+            Q3 = Z[1:n_par.nstates,:]*F3#[Z11 Z12]*F3
+            Q4 = Z[n_par.nstates+1:end,:]*F3#[Z21 Z22]*F3
+            
+            H  = I - X21*((I+Q1*X21)\Q1)
+            # within loop only update X21
+            # @timev begin
+            while diff1>1e-6 && i<1000 
+                i += 1
+                X21up .= Q4 - Q2*H*X21*Q3#  [Z21 - Q2*H*X21*Z11  Z22 - Q2*H*X21*Z12]*F3
+                diff1 = maximum(abs.(X21up .- X21))[1]
+                X21 .= X21up
+                H .= I - X21*((I+Q1*X21)\Q1)
+            end
+            # end
+            X11 = Q3 - Q1*H*X21*Q3 # [Z11 - Q1 * H*X21*Z11  Z12 - Q1*H*X21*Z12]* F3
+            hx = X11#F0[1:n_par.nstates,1:n_par.nstates]
+            gx = X21#[n_par.nstates+1:end,1:n_par.nstates]
+            # println(i)
+            # println("litx")
             nk = n_par.nstates
             alarm_sgu = false
         end

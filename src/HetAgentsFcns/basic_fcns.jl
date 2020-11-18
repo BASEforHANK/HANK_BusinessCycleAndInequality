@@ -1,16 +1,15 @@
 #----------------------------------------------------------------------------
 # Basic Functions: Return on capital, marginal utility and its inverse
 #---------------------------------------------------------------------------
-mutil(c::Array,#Union{Array{Float64},Array{DualNumbers.Dual{Float64}}},
-    ξ::Float64)      = 1.0 ./ ((c.*c).*(c.*c))#c.^ξ#
-invmutil(mu::Array,#Union{Array{Float64},Array{DualNumbers.Dual{Float64}}},
-    ξ::Float64)  = 1.0 ./ (sqrt.(sqrt.(mu)))#mu.^(1.0./ξ)#
+mutil(c::Array, ξ::Float64)      = 1.0 ./ ((c.*c).*(c.*c)) # c.^ξ#
+invmutil(mu::Array, ξ::Float64)  = 1.0 ./ (sqrt.(sqrt.(mu))) # mu.^(1.0./ξ)#
 
-# Incomes (K:capital, A: TFP): Interst rate = MPK.-δ, Wage = MPL, profits = Y-wL-(r+\delta)*K
-interest(K::Number, A::Number,N::Number, m_par::ModelParameters) = A.* m_par.α .* (K./N) .^(m_par.α - 1.0) .- m_par.δ_0         # A=TFP * MC
-wage(K::Number, A::Number,N::Number, m_par::ModelParameters)     = A.* (1-m_par.α) .* (K./N) .^m_par.α # A=TFP * MC
-output(K::Number, A::Number,N::Number, m_par::ModelParameters)  = A.* K .^(m_par.α).*N .^(1-m_par.α)
-employment(K::Number, A::Number, m_par::ModelParameters)     = (A.* (1.0-m_par.α) .* (m_par.τ_lev .* (1.0 - m_par.τ_prog)).^(1.0 /(1.0 - m_par.τ_prog)) .* K .^(m_par.α )).^((1.0 - m_par.τ_prog)./(m_par.γ+m_par.τ_prog+(m_par.α).*(1 - m_par.τ_prog))) # A=TFP*MC
+# Incomes (K:capital, A: TFP): Interest rate = MPK.-δ, Wage = MPL, profits = Y-wL-(r+\delta)*K
+interest(K::Number, A::Number,N::Number, m_par::ModelParameters) = A .* m_par.α .* (K ./ N) .^(m_par.α - 1.0) .- m_par.δ_0
+wage(K::Number, A::Number,N::Number, m_par::ModelParameters)     = A .* (1 - m_par.α) .* (K./N) .^m_par.α
+output(K::Number, A::Number,N::Number, m_par::ModelParameters)   = A .* K .^(m_par.α) .* N .^(1 - m_par.α)
+employment(K::Number, A::Number, m_par::ModelParameters)         = (A .* (1.0 - m_par.α) .* (m_par.τ_lev .* (1.0 - m_par.τ_prog)).^(1.0 / (1.0 - m_par.τ_prog)) 
+                                                                    .* K .^(m_par.α )).^((1.0 - m_par.τ_prog)./(m_par.γ + m_par.τ_prog + (m_par.α) .* (1 - m_par.τ_prog)))
 
 @doc raw"""
     distrSummaries(distr,c_a_star,c_n_star,n_par,inc,incgross,m_par)
@@ -59,7 +58,10 @@ function distrSummaries(distr::AbstractArray,c_a_star::AbstractArray,
     p50             = count(moneycapital_cdf.<0.5)+1;
     p90             = count(moneycapital_cdf.<0.9)+1;
     w9050           = mplusk[p90]./mplusk[p50];
-    w90share        = sum(mplusk[p90:end].*moneycapital_pdf[p90:end])./sum(mplusk.*moneycapital_pdf);
+    FN_wealthshares = cumsum(mplusk.*moneycapital_pdf)./sum(mplusk.*moneycapital_pdf);
+    w90share        = 1.0 - mylinearinterpolate(moneycapital_cdf,FN_wealthshares,[0.9])[1]
+
+
     x               = zeros(eltype(c_a_star),(n_par.nm, n_par.nk,n_par.ny,2))
     c               = zeros(eltype(c_a_star),(n_par.nm, n_par.nk,n_par.ny,2))
     distr_x         = zeros(eltype(c_a_star),(n_par.nm, n_par.nk,n_par.ny,2))
@@ -95,7 +97,6 @@ function distrSummaries(distr::AbstractArray,c_a_star::AbstractArray,
     p10C            = c[p10];
     p50C            = c[p50];
     p90C            = c[p90];
-    # P0020C          = c[1:p20].*(c_pdf[1:p20]./sum(c_pdf[1:p20]))
 
     S               = [0 S'];
     giniconsumption = 1-(sum(c_pdf.*(S[1:end-1]+S[2:end]))/S[end]);
@@ -107,26 +108,36 @@ function distrSummaries(distr::AbstractArray,c_a_star::AbstractArray,
     Y_pdf           = distr[IX]
     Y_cdf           = cumsum(Y_pdf)
     p10             = count(Y_cdf.<0.1)+1
-    p90             = count(Y_cdf.<0.9)+1
-    y9010           = Yidio[p90]./Yidio[p10]
-    I90sharenet     = sum(Yidio[p90:end].*Y_pdf[p90:end])./sum(Yidio.*Y_pdf);
+    FN_incomesharesnet = cumsum(Yidio.*Y_pdf)./sum(Yidio.*Y_pdf);
+    I90sharenet        = 1.0 .- mylinearinterpolate(Y_cdf,FN_incomesharesnet,[0.9])[1]
 
     Yidio           = incgross[1]+incgross[2]+incgross[3] - n_par.mesh_m
     IX              = sortperm(Yidio[:])
     Yidio           = Yidio[IX]
     Y_pdf           = distr[IX]
     Y_cdf           = cumsum(Y_pdf)
-    p10             = count(Y_cdf.<0.1)+1
-    p90             = count(Y_cdf.<0.9)+1
-    y9010           = Yidio[p90]./Yidio[p10]
-    I90share        = sum(Yidio[p90:end].*Y_pdf[p90:end])./sum(Yidio.*Y_pdf);
-
+    FN_incomeshares = cumsum(Yidio.*Y_pdf)./sum(Yidio.*Y_pdf);
+    I90share        = 1.0 .- mylinearinterpolate(Y_cdf,FN_incomeshares,[0.9])[1]
 
     S               = cumsum(Y_pdf.*Yidio)
     S               = [0 S']
     giniincome      = 1-(sum(Y_pdf.*(S[1:end-1]+S[2:end]))/S[end])
+
+
+    Yidio           = incgross[1]
+    Yidio           = Yidio[:,:,1:end-1]
+    IX              = sortperm(Yidio[:])
+    Yidio           = Yidio[IX]
+    distr_aux       = distr[:,:,1:end-1]
+    distr_aux       = distr_aux./sum(distr_aux[:])
+    Y_pdf           = distr_aux[IX]
+    Y_cdf           = cumsum(Y_pdf)
+    p10             = count(Y_cdf.<0.1)+1
+    p50             = count(Y_cdf.<0.5)+1
+    y5010           = Yidio[p50]./Yidio[p10]
+
     sdlogy          = sqrt(Y_pdf[:]'*log.(Yidio[:]).^2-(Y_pdf[:]'*log.(Yidio[:]))^2);
 
     return     distr_m, distr_k, distr_y, share_borrower, giniwealth, I90share,I90sharenet, ginicompconsumption,#=
-            =# sdlogx, c9010, giniconsumption, sdlogc, y9010, giniincome, sdlogy, w90share, p10C, p50C, p90C
+            =# sdlogx, c9010, giniconsumption, sdlogc, y5010, giniincome, sdlogy, w90share, p10C, p50C, p90C
 end

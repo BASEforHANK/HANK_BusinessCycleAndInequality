@@ -22,6 +22,7 @@ function likeli(par, Data, Data_miss, H_sel, XSSaggr, A, B, indexes,indexes_aggr
     if alarm_prior
         log_like = -9.e15
         alarm = true
+        State2Control = zeros(n_par.ncontrols, n_par.nstates)
 
         if e_set.debug_print
             println("PRIOR")
@@ -36,7 +37,6 @@ function likeli(par, Data, Data_miss, H_sel, XSSaggr, A, B, indexes,indexes_aggr
         # replace estimated values in m_par by last candidate
         m_par = Flatten.reconstruct(m_par, par[1:m_start])
 
-        #display(m_par)
         # Covariance of structural shocks
         SCov = zeros(n_par.nstates, n_par.nstates)
         for i in e_set.shock_names
@@ -102,7 +102,7 @@ function likeli(par, Data, Data_miss, H_sel, XSSaggr, A, B, indexes,indexes_aggr
     post_like = log_like + prior_like
 
     if smoother == false
-        return log_like, prior_like, post_like, alarm
+        return log_like, prior_like, post_like, alarm, State2Control
     else
         return smoother_output
     end
@@ -178,6 +178,47 @@ function kalman_filter(H::Array{Float64,2}, LOM::Array{Float64,2}, Data::Array{U
     return loglik
 end
 
+function kalman_filter(H::Array{Float64,2}, LOM::Array{Float64,2}, Data::Array{Float64,2},
+    D_nomiss::BitArray{2}, SCov::Array{Float64,2}, MCov::Diagonal{Float64, Array{Float64,1}}, e_set::EstimationSettings)
+    # kalman filter variant without missing data
+
+    SIG = lyapunov_symm_own(LOM,SCov,1e-15)
+    SIG = nearest_spd(SIG)
+
+    t = size(Data)
+    n = size(LOM)
+    xhat = zeros(Float64, n[1])
+    # @time begin
+    log_lik = 0.0
+    @views @inbounds for s = 1:t[1]
+       # compute likelihood contribution
+       resi = Data[s, :] .- H * xhat
+       SH   = SIG * H'
+       Ω    = H * SH + MCov
+       OmegaInv = I / Ω
+
+       logdet_Ω, sign_logdet = logabsdet(Ω)
+       if sign_logdet < 0
+            log_lik+=-10.e8
+            if e_set.debug_print
+                println("KF")
+            end
+            return log_lik
+        else
+            log_lik += - logdet_Ω - resi' * OmegaInv * resi
+        end
+       # update
+       K  = LOM * SH * OmegaInv# Gain
+       xhat = LOM * xhat + K * resi
+       Z = LOM - K * H
+       SIG   = Z*(SIG*Z') + K*(MCov*K')  + SCov
+       SIG = 0.5 * (SIG + SIG')
+    end
+    loglik = 0.5 * log_lik - 0.5 * t[1] * t[2] * log(2.0 * π)
+    # end
+    return loglik
+end
+
 @doc raw"""
     kalman_filter_smoother(H,LOM,Data,D_nomiss,SCov,MCov,e_set)
 
@@ -200,7 +241,7 @@ applying the Kalman smoother to the state-space represenation (`H`,`LOM`) of the
 - `s`,`m`: ?
 """
 function kalman_filter_smoother(H::Array{Float64,2}, LOM::Array{Float64,2},
-    Data::Array{Union{Missing, Float64},2}, D_nomiss::BitArray{2}, SCov::Array{Float64,2},
+    Data, D_nomiss::BitArray{2}, SCov::Array{Float64,2},
     MCov::Diagonal{Float64, Array{Float64,1}}, e_set)
 
     T, n_obs_vars = size(Data)
@@ -222,11 +263,6 @@ function kalman_filter_smoother(H::Array{Float64,2}, LOM::Array{Float64,2},
     for t = 1:T
        # compute likelihood contribution
        resi[D_nomiss[t, :], t] = Data[t, D_nomiss[t, :]] .- H[D_nomiss[t, :], :] * xhat_tgtm1[:, t]
-       # if t>100
-       #     resi[end-4,t]=0
-       # end
-       # println(t)
-       # println(resi[1, t])
        SH   = Sigma_tgtm1[:, :, t] * transpose(H[D_nomiss[t, :], :])
        Ω    = H[D_nomiss[t, :], :] * SH + MCov[D_nomiss[t, :], D_nomiss[t, :]]
        logdet_Ω, sign_logdet = logabsdet(Ω)
@@ -249,11 +285,7 @@ function kalman_filter_smoother(H::Array{Float64,2}, LOM::Array{Float64,2},
        xhat_tgt[:, t] = xhat_tgtm1[:, t] + (SH * OmegaInv[D_nomiss[t, :], D_nomiss[t, :],  t]) * resi[D_nomiss[t, :], t]
        Sigma_tgt[:, :, t] = Sigma_tgtm1[:, :, t] - SH * (OmegaInv[D_nomiss[t, :], D_nomiss[t, :], t] * transpose(SH))
        xhat_tgtm1[:, t + 1] = LOM * xhat_tgtm1[:, t] + K[:, D_nomiss[t, :], t] * resi[D_nomiss[t, :], t]
-       # Sigma_tgtm1[:, :, t + 1] = LOM * (Sigma_tgt[:, :, t] * LOM') + SCov # DK 4.23
-       # Sigma_tgtm1_temp = LOM * (Sigma_tgt[:, :, t] * transpose(LOM)) + SCov # DK 4.23
        Sigma_tgtm1_temp =  L[:, :, t] * (Sigma_tgtm1[:, :, t] * L[:, :, t]') + K[:, D_nomiss[t, :], t] * (MCov[D_nomiss[t, :], D_nomiss[t, :]] * K[:, D_nomiss[t, :], t]') + SCov
-       # Sigma_tgtm1[:, :, t + 1] =  L[:, :, t] * (Sigma_tgtm1[:, :, t] * L[:, :, t]') + K[:, :, t] * (MCov * K[:, :, t]') + SCov
-       # Sigma_tgtm1[:, :, t + 1] = tril(Sigma_tgtm1_temp) + transpose(tril(Sigma_tgtm1_temp, -1))
        Sigma_tgtm1[:, :, t + 1] = 0.5 * (Sigma_tgtm1_temp + transpose(Sigma_tgtm1_temp))
 
     end
@@ -347,7 +379,7 @@ function kalman_filter_herbst(Data, LOM, SCov, H, MCov, t0, e_set)
 end
 
 function lyapunov_symm_own(a::Array{Float64,2}, b::Array{Float64,2}, lyapunov_complex_threshold::Float64)
-
+    # Adapted from Dynare. Copyright (C) 2006-2017 Dynare Team
     T, Z = schur(a)
     B = (Z' * b) * Z
     n = size(T, 1)

@@ -23,6 +23,7 @@ the following areas of the estimation:
 - **numerical parameters**: the maximum number of iterations to find the mode of the
     likelihood (see [`mode_finding()`](@ref)) is set in `max_iter_mode`. `ndraws`, `burnin`
     and `mhscale` are parameters for the Random-Walk Metropolis Hastings algorithm (see [`rwmh()`](@ref))
+- **estimation flags**: whether to estimate the model is set in `estimate_model`. `compute_hessian` determines whether the Hessian is computed after mode finding or set to an identity matrix (see [`mode_finding()`](@ref)). `multi_chain_init` sets whether multiple chains in the RWMH (see [`rwmh()`](@ref)) are started from an overdispersed posterior mode. All flags are set to `false` by default.
 
 ## Mode finding
 ```@docs
@@ -51,7 +52,7 @@ in the following steps:
     the log-likelihood
 
 We find the maximizer of the likelihood function, as well as its Hessian at the maximum,
-with the package `Optim`.
+with the package `Optim`. Note that in order to obtain the Hessian, you need to set `e_set.compute_hessian = true`.
 
 ### Called functions
 ```@docs
