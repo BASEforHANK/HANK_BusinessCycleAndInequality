@@ -35,8 +35,12 @@ Write all single steady state variables into vectors XSS / XSSaggr.
 globals `state_names`, `control_names`, `aggr_names`
 """
 macro writeXSS()
+    # This macro writes all single steady state variables into a Vector XSS / XSSaggr
+    # The variable names are expected to be in the GLOBALs state_names,
+    # control_names, and aggr_names.
+    #
         ex = quote
-                XSS =   [ distr_m_SS[:];distr_k_SS[:]; distr_y_SS[:]]
+                XSS =   [ distr_m_SS[:];distr_k_SS[:]; distr_y_SS[:]; distrSS[:]]
         end
         for j in state_names
                 varnameSS = Symbol(j,"SS")
@@ -71,6 +75,7 @@ macro writeXSS()
 
     return esc(ex)
 end
+
 
 macro include(filename::AbstractString)
     path = joinpath(dirname(String(__source__.file)), filename)

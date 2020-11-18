@@ -43,10 +43,11 @@ function SGU_estim(XSSaggr::Array, A::Array, B::Array,
 
     @make_deriv_estim n_FD
     BLAS.set_num_threads(1)
-
+    #@timev begin
     prime_loop_estim!(Ad, DerivPrime, length_X0, n_par,n_FD)
     loop_estim!(Bd, Deriv, length_X0, n_par,n_FD)
-
+    #end
+    #@timev begin
     for k = 1:length(aggr_names)
         if !(any(distr_names.==aggr_names[k]))
             j = getfield(indexes, Symbol(aggr_names[k]))
@@ -59,6 +60,7 @@ function SGU_estim(XSSaggr::Array, A::Array, B::Array,
             end
         end
     end
+    #end
     #A[n_par.Asel] = Ad
     #B[n_par.Bsel] = Bd
 
@@ -66,7 +68,7 @@ function SGU_estim(XSSaggr::Array, A::Array, B::Array,
     # Solve the linearized model: Policy Functions and LOMs
     ############################################################################
     BLAS.set_num_threads(Threads.nthreads())
-    if n_par.sol_algo == :lit
+    if n_par.sol_algo == :lit # naive linear time iteration
         @views begin
             F1 = A[:, 1:n_par.nstates]
             F2 = A[:, n_par.nstates+1:end]
@@ -85,6 +87,7 @@ function SGU_estim(XSSaggr::Array, A::Array, B::Array,
             diff1 = 1000.0
             i = 0
             Mat = copy(BB)
+            #@timev begin
             while abs(diff1)>1e-6 && i<1000
                 Mat[:,1:n_par.nstates] = BB[:,1:n_par.nstates] .+ CC * F0
                 F00 = Mat \ (-AA)
@@ -93,13 +96,76 @@ function SGU_estim(XSSaggr::Array, A::Array, B::Array,
                 F0 .= F00
                 i += 1
             end
+            #end
             hx = F0[1:n_par.nstates,1:n_par.nstates]
             gx = F0[n_par.nstates+1:end,1:n_par.nstates]
-
+            #println(i)
+            #println("lit")
             nk = n_par.nstates
             alarm_sgu = false
         end
-    elseif n_par.sol_algo == :aim
+    elseif n_par.sol_algo == :litx # linear time iteration with speed-up
+         @views begin
+            # Formula X_{t+1} = [X11 X12;X21 X22] = inv(BB + [0 F2]*X_t)*[F3 0]
+            # implies X21=0, X22 = 0
+            # use of Woodburry-Morrison-Shermann
+            # X.1_{t+1} =  (inv(BB)  - inv(BB)*[0 F2]* inv(I+[X.1_t 0]*inv(BB)*[0 F2])[X.1_t 0])*F3inv(BB) ; WMS formula
+            # Z = inv(BB)
+            # X.1_{t+1} =  Z*F3  - Z * [0 F2] * inv(I+[X.1_t 0]*Z*[0 F2])[X.1_t 0] * Z * F3 ; multiply
+            #           =  Z*F3  - Z * [0 F2] * inv(I+[0 X11_t *Z1. * F2; 0 X21_t* Z2. *F2])[X.1_t 0]*Z*F3
+            #           =  Z*F3  - Z * [0 F2] * [I  , -(X11_t * Z1. * F2) *inv(I+ X21_t* Z2. *F2); 0 , inv(I+ X21_t* Z2. *F2)])[X.1_t 0]*Z*F3 ; block upper trianglular inverse
+            #           =  Z*F3  - [0  , Z * F2 * inv(I+ X21_t* Z2. *F2)] * X.1_t * Z1. *F3 ; multiply
+            #           =  Z*F3  - Z*F2* inv(I+ X21_t* Z2. *F2)]* X21_t * Z1. *F3 ; multiply out
+            #           =  [(Z1. * F3); (Z2. * F3) ] -  [(Z1. * F2); (Z2. * F2)]* (I - X21_t * inv(I +  (Z2. * F2) * X21_t)]* (Z2. * F2)) * X21_t * (Z1. *F3); WMS formula
+            # X11_{t+1} =  Q3 -  Q1 *(I - X21_t*inv(I +  Q1*X21_t) * Q1)*X21_t * Q3; WMS formula
+            #           =  Q3 -  Q1 *(X21_t - X21_t*inv(I +  Q1*X21_t) * Q1*X21_t) * Q3;
+            # X21_{t+1} =  Q4 -  Q2 *(X21_t - X21_t*inv(I +  Q1*X21_t) * Q1*X21_t) * Q3; WMS formula
+            #           =  Q4 -  Q2 *X21_t*inv(I +  Q1*X21_t) * Q3; use inv(I+A)*A = I - inv(I+A)  
+            #        Q1 = Z1. * F2
+            #        Q2 = Z2. * F2
+            #        Q3 = Z1. * F3
+            #        Q4 = Z2. * F3
+            F1 = A[:, 1:n_par.nstates]
+            F2 = A[:, n_par.nstates+1:end]
+            F3 = -B[:, 1:n_par.nstates]
+            F4 = B[:, n_par.nstates+1:end]
+            
+            BB = hcat(F1, F4)
+            Z  = BB\I # inverse of BB
+
+            X21up = zeros(n_par.ncontrols, n_par.nstates)
+            
+            X21   = copy(n_par.State2Control_save)
+
+            diff1 = 1000.0
+            i = 0
+            Q1 = Z[1:n_par.nstates,:]*F2    #[Z11 Z12] * F2
+            Q2 = Z[n_par.nstates+1:end,:]*F2#[Z21 Z22] * F2
+            Q3 = Z[1:n_par.nstates,:]*F3    #[Z11 Z12]*F3
+            Q4 = Z[n_par.nstates+1:end,:]*F3#[Z21 Z22]*F3
+            Q1X21 = Q1*X21
+            #H  = X21 - X21*((I+Q1X21)\Q1X21)
+            H     = X21/(I + Q1X21)
+            # within loop only update X21
+            #@timev begin
+            while diff1>1e-6 && i<1000 
+                i += 1
+                X21up .= Q4 - Q2*H*Q3#  [Z21 - Q2*H*X21*Z11  Z22 - Q2*H*X21*Z12]*F3
+                diff1  = maximum(abs.(X21up .- X21))[1]
+                Q1X21 .= Q1*X21up
+                X21   .= X21up
+                H     .= X21/(I + Q1X21) # use that inv(I+A)*A = I - inv(I+A) 
+            end
+            #end
+            X11 = (I + Q1X21)\Q3 # Q3 - Q1*H*Q3 # [Z11 - Q1 * H*X21*Z11  Z12 - Q1*H*X21*Z12]* F3
+            hx = X11#F0[1:n_par.nstates,1:n_par.nstates]
+            gx = X21#[n_par.nstates+1:end,1:n_par.nstates]
+            #println(i)
+            #println("litx")
+            nk = n_par.nstates
+            alarm_sgu = false
+        end
+    elseif n_par.sol_algo == :aim # Anderson and Moore method
         F1 = A[:, 1:n_par.nstates]
         F2 = A[:, n_par.nstates+1:end]
         F3 = B[:, 1:n_par.nstates]

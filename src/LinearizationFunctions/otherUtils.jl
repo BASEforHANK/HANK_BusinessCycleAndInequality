@@ -75,40 +75,46 @@ Create function `fn_name` that returns an instance of `struct` `IndexStruct`
 inferred from numerical parameters and compression indexes.
 """
 macro make_fn(fn_name,  s_names, c_names)
+    # fields=[:($(entry.args[1])::$(entry.args[2])) for entry in var_names]
+	# fieldsSS=[:($(Symbol((entry.args[1]), "SS"))::$(entry.args[2])) for entry in var_names]
 	state_names=Symbol.(eval((s_names)))
 	n_states = length(state_names)
 	control_names=Symbol.(eval((c_names)))
 	n_controls = length(control_names)
 
-	fieldsSS_states = [:(tNo + $i) for i = 1:n_states]
-	fields_states = [:(tNo - 3 + $i) for i = 1:n_states]
-	fieldsSS_controls = [:(tNo + 2 * tNo2 + $i) for i = n_states .+ (1:n_controls)]
-	fields_controls = [:(tNo + tNo3 - 3 + $i) for i = n_states .+ (1:n_controls)]
+	fieldsSS_states = [:((tNo + tNo2) + $i) for i = 1:n_states]
+	fields_states = [:(tNo + tNo4 - 3 + $i) for i = 1:n_states]
+	fieldsSS_controls = [:(tNo + 3 * tNo2 + $i) for i = n_states .+ (1:n_controls)]
+	fields_controls = [:(tNo + tNo3 + tNo4 - 3 + $i) for i = n_states .+ (1:n_controls)]
 	esc(quote
-		function $(fn_name)(n_par, compressionIndexesVm, compressionIndexesVk)
+		function $(fn_name)(n_par, compressionIndexesVm, compressionIndexesVk, compressionIndexesD)
 		    tNo = n_par.nm + n_par.nk + n_par.ny
 		    tNo2 = n_par.nm * n_par.nk * n_par.ny
 		    tNo3 = length(compressionIndexesVm) + length(compressionIndexesVk)
+			tNo4 = length(compressionIndexesD)
 		    indexes = IndexStruct(
 		        1:n_par.nm, # distr_m_SS
 		        (n_par.nm+1):(n_par.nm+n_par.nk), # distr_k_SS
 		        (n_par.nm+n_par.nk+1):(tNo), # distr_y_SS
+				(tNo + 1):(tNo + tNo2), # VDSS
 				$(fieldsSS_states...),
-				(tNo + $(n_states) + 1):(tNo + tNo2 + $(n_states)), # VmSS
-		        (tNo + tNo2 + $(n_states) + 1):(tNo + 2 * tNo2 + $(n_states)), # VkSS
+				((tNo + tNo2) + $(n_states) + 1):((tNo + tNo2) + tNo2 + $(n_states)), # VmSS
+		        ((tNo + tNo2) + tNo2 + $(n_states) + 1):((tNo + tNo2) + 2 * tNo2 + $(n_states)), # VkSS
 				$(fieldsSS_controls...),
 				1:(n_par.nm - 1), # distr_m
 		        n_par.nm:(n_par.nm + n_par.nk - 2), # distr_k
 		        (n_par.nm + n_par.nk - 1):(tNo - 3), # distr_y
+				(tNo - 2):(tNo + tNo4 - 3), # VD
 				$(fields_states...),
-				(tNo + $(n_states) - 2):(tNo + length(compressionIndexesVm) + $(n_states) - 3), # Vm
-		        (tNo + length(compressionIndexesVm) + $(n_states) -2):(tNo + tNo3 + $(n_states) - 3), # Vk
+				(tNo + tNo4 + $(n_states) - 2):(tNo + tNo4 + length(compressionIndexesVm) + $(n_states) - 3), # Vm
+		        (tNo + tNo4 + length(compressionIndexesVm) + $(n_states) -2):(tNo + tNo4 + length(compressionIndexesVm) + length(compressionIndexesVk) + $(n_states) - 3), # Vk
 				$(fields_controls...)
 				)
 			return indexes
 		end
 	end)
 end
+
 
 @doc raw"""
 	@make_deriv(n_FD_s)
@@ -125,9 +131,9 @@ macro make_deriv(n_FD_s)
 	fn_rows =Expr(:call, :.+, [:(((1:length_X0) .== i + ($j-1)) * ForwardDiff.Dual(0.0, tuple($(a[j, :])...))) for j = 1:n_FD]...)
 	esc(quote
     	Deriv(i)      = ForwardDiff.partials.(Fsys(X0 .+ $(fn_rows), X0, XSS, m_par,
-                                n_par, indexes, Γ, compressionIndexes,DC,IDC, Copula),:)
+                                n_par, indexes, Γ, compressionIndexes,DC,IDC, DCD, IDCD),:)
     	DerivPrime(i) = ForwardDiff.partials.(Fsys(X0, X0 .+ $(fn_rows), XSS, m_par,
-                                n_par, indexes, Γ, compressionIndexes,DC,IDC, Copula),:)
+                                n_par, indexes, Γ, compressionIndexes,DC,IDC, DCD, IDCD),:)
 		end
 	)
 end

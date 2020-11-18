@@ -27,15 +27,16 @@ function rwmh(xhat::Vector{Float64}, Σ::Symmetric{Float64,Array{Float64,2}}, n_
     proposal_draws = e_set.mhscale .* rand(NormDist, e_set.ndraws + e_set.burnin)
     for i = 2:e_set.ndraws + e_set.burnin
         xhatstar = draws[i-1, :] .+ proposal_draws[:, i]
-        new_posterior, alarm = likeli(xhatstar, Data, D_miss, H_sel, XSSaggr, A, B,
-                            indexes,indexes_aggr, m_par, n_par, e_set, Copula, distrSS,
-                            compressionIndexes, priors, meas_error, meas_error_std)[3:4]
+        new_posterior, alarm, State2Control = likeli(xhatstar, Data, D_miss, H_sel, XSSaggr, A, B,
+        indexes,indexes_aggr, m_par, n_par, e_set, Copula, distrSS,
+        compressionIndexes, priors, meas_error, meas_error_std)[3:5]
 
         accprob = min(exp(new_posterior - old_posterior), 1.0)
-		if alarm == false && rand() .<= accprob
+        if alarm == false && rand() .<= accprob
             draws[i, :] = xhatstar
             posterior[i] = copy(old_posterior)
             old_posterior = new_posterior
+            @set! n_par.State2Control_save = State2Control
             accept += 1
         else
             draws[i, :] = draws[i-1, :]
@@ -132,6 +133,7 @@ where H is the symmetric polar factor of B=(A + A')/2."
 `Ahat`: nearest SPD matrix to `A`
 """
 function nearest_spd(A)
+# adapted from John D'Errico (2020). nearestSPD (https://www.mathworks.com/matlabcentral/fileexchange/42885-nearestspd), MATLAB Central File Exchange.
 # symmetrize A into B
 B = 0.5 .* (A .+ A')
 FU, FS, FVt = LinearAlgebra.LAPACK.gesvd!('N', 'S', copy(B))

@@ -28,7 +28,8 @@ julia> Fsys(zeros(ntotal),zeros(ntotal),XSS,m_par,n_par,indexes,Γ,compressionIn
 function Fsys(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}, m_par::ModelParameters,
               n_par::NumericalParameters, indexes::IndexStruct, Γ::Array{Array{Float64,2},1},
               compressionIndexes::Array{Array{Int,1},1}, DC::Array{Array{Float64,2},1},
-              IDC::Array{Adjoint{Float64,Array{Float64,2}},1}, Copula::Function)
+              IDC::Array{Adjoint{Float64,Array{Float64,2}},1}, DCD::Array{Array{Float64,2},1},
+              IDCD::Array{Adjoint{Float64,Array{Float64,2}},1})
               # The function call with Duals takes
               # Reserve space for error terms
     F = zeros(eltype(X),size(X))
@@ -50,6 +51,23 @@ function Fsys(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}, m_
     ############################################################################
     # I.2. Distributions (Γ-multiplying makes sure that they are distributions)
     ############################################################################
+
+    # Controls copula
+    θD      = uncompressD(compressionIndexes[3], X[indexes.D], DCD,IDCD, n_par)
+
+    DISTRAUX =zeros(eltype(θD),n_par.nm,n_par.nk,n_par.ny)
+    θDaux=reshape(θD,(n_par.nm-1,n_par.nk-1, n_par.ny-1))
+    DISTRAUX[1:end-1,1:end-1,1:end-1]=θDaux;
+    DISTRAUX[end,1:end-1,1:end-1] = -sum(θDaux, dims=(1));
+    DISTRAUX[:,end,1:end-1] = -sum(DISTRAUX[:,:,1:end-1], dims=(2));
+    DISTRAUX[:,:,end] = -sum(DISTRAUX, dims=(3));
+
+    DISTR = Xss[indexes.DSS]+ DISTRAUX[:]
+    DISTR = reshape(DISTR,(n_par.nm,n_par.nk, n_par.ny))
+    DISTR = max.(DISTR,1e-16);
+    DISTR = DISTR./sum(DISTR[:]);
+    DISTR = cumsum(cumsum(cumsum(DISTR; dims=3);dims=2);dims=1)
+
     distr_m       = Xss[indexes.distr_m_SS] .+ Γ[1] * X[indexes.distr_m]
     distr_m_Prime = Xss[indexes.distr_m_SS] .+ Γ[1] * XPrime[indexes.distr_m]
     distr_k       = Xss[indexes.distr_k_SS] .+ Γ[2] * X[indexes.distr_k]
@@ -61,10 +79,17 @@ function Fsys(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}, m_
     CDF_m         = cumsum([0.0; distr_m[:]])
     CDF_k         = cumsum([0.0; distr_k[:]])
     CDF_y         = cumsum([0.0; distr_y[:]])
-    CDF_joint     = Copula(CDF_m[:], CDF_k[:], CDF_y[:]) # roughly 5% of time
 
-    ##### requires Julia 1.1
+    cum_zero = zeros(eltype(θD),n_par.nm+1,n_par.nk+1, n_par.ny+1);
+    cum_zero[2:end,2:end,2:end] = DISTR;
+    Copula1(x::AbstractVector,y::AbstractVector,z::AbstractVector) = mylinearinterpolate3(cum_zero[:,end,end],cum_zero[end,:,end],cum_zero[end,end,:],cum_zero, x, y, z)
+    #Copula1 = LinearInterpolation((cum_zero[:,end,end],cum_zero[end,:,end],cum_zero[end,end,:]),cum_zero,extrapolation_bc=Line())
+
+    CDF_joint     = Copula1(CDF_m[:], CDF_k[:], CDF_y[:]) # roughly 5% of time
     distr         = diff(diff(diff(CDF_joint; dims=3);dims=2);dims=1)
+
+
+
     ############################################################################
     # I.3 uncompressing policies/value functions
     ###########################################################################
@@ -131,7 +156,7 @@ function Fsys(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}, m_
     GHHFA=((m_par.γ - τprog)/(m_par.γ+1)) # transformation (scaling) for composite good
     tax_prog_scale = (m_par.γ + m_par.τ_prog)/((m_par.γ + τprog))
     inc =[  GHHFA.*τlev.*((n_par.mesh_y/H).^tax_prog_scale .*mcw.*w.*N./(Ht)).^(1.0-τprog).+
-            ((1.0 .- mcw).*w.*N).*(1.0 .- av_tax_rate),# labor income (NEW)
+            (unionprofits).*(1.0 .- av_tax_rate),# labor income (NEW)
             (r .- 1.0).* n_par.mesh_k, # rental income
             eff_int .* n_par.mesh_m, # liquid asset Income
             n_par.mesh_k .* q,
@@ -142,7 +167,7 @@ function Fsys(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}, m_
     inc[6][:,:,end].= τlev.*(n_par.mesh_y[:,:,end] .* profits).^(1.0-τprog) # profit income net of taxes
 
     incgross =[  ((n_par.mesh_y/H).^tax_prog_scale .*mcw.*w.*N./(Ht)).+
-            ((1.0 .- mcw).*w.*N),
+            (unionprofits),
             (r .- 1.0).* n_par.mesh_k, # rental income
             eff_int .* n_par.mesh_m, # liquid asset Income
             n_par.mesh_k .* q,
@@ -153,7 +178,13 @@ function Fsys(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}, m_
     taxrev = incgross[5]-inc[6] # tax revenues w/o tax on union profits
     incgrossaux = incgross[5]
     F[indexes.τlev] = av_tax_rate - (distr[:]' * taxrev[:])./(distr[:]' * incgrossaux[:])
-    F[indexes.T]    = log(T) - log(distr[:]' * taxrev[:] + av_tax_rate*((1.0 .- mcw).*w.*N))
+    F[indexes.T]    = log(T) - log(distr[:]' * taxrev[:] + av_tax_rate * (unionprofits))
+
+
+    inc[6] = τlev.*((n_par.mesh_y/H).^tax_prog_scale .*mcw.*w.*N./(Ht)).^(1.0-τprog) .+ ((1.0 .- mcw).*w.*N).*(1.0 .- av_tax_rate)
+    inc[6][:,:,end].= τlev.*(n_par.mesh_y[:,:,end] .* profits).^(1.0-τprog) # profit income net of taxes
+
+
 
     # Calculate optimal policies
     # expected margginal values
@@ -189,11 +220,31 @@ function Fsys(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}, m_
     dPrime        = DirectTransition(m_a_star,  m_n_star, k_a_star,distr, m_par.λ, Π, n_par)
     dPrs          = reshape(dPrime,n_par.nm,n_par.nk,n_par.ny)
     temp          = dropdims(sum(dPrs,dims=(2,3)),dims=(2,3))
+    cum_m         = cumsum(temp)
     F[indexes.distr_m] = temp[1:end-1] - distr_m_Prime[1:end-1]
     temp          = dropdims(sum(dPrs,dims=(1,3)),dims=(1,3))
+    cum_k         = cumsum(temp)
     F[indexes.distr_k] = temp[1:end-1] - distr_k_Prime[1:end-1]
     temp          = distr_y'*Π# dropdims(sum(dPrs,dims=(1,2)),dims=(1,2))
+    cum_h         = cumsum(temp')
     F[indexes.distr_y] = temp[1:end-1] - distr_y_Prime[1:end-1]
+
+    cum_zero=zeros(eltype(θD),n_par.nm+1,n_par.nk+1, n_par.ny+1);
+    cum_dist_new = cumsum(cumsum(cumsum(dPrs; dims=3);dims=2);dims=1)
+    cum_zero[2:end,2:end,2:end]=cum_dist_new;
+    Copula2(x::AbstractVector,y::AbstractVector,z::AbstractVector) = mylinearinterpolate3([0; cum_m],[0; cum_k],[0; cum_h],
+    cum_zero, x, y, z)
+
+    CDF_joint     = Copula2([0.0; cumsum(Xss[indexes.distr_m_SS])] .+ zeros(eltype(θD),n_par.nm+1),
+    [0.0; cumsum(Xss[indexes.distr_k_SS])].+ zeros(eltype(θD),n_par.nk+1),
+    [0.0; cumsum(Xss[indexes.distr_y_SS])] .+ zeros(eltype(θD),n_par.ny+1)) # roughly 5% of time
+
+    distr_up         = diff(diff(diff(CDF_joint; dims=3);dims=2);dims=1)
+    distr_err        =((distr_up)) .- reshape(Xss[indexes.DSS],(n_par.nm,n_par.nk,n_par.ny))
+
+    D_thet       = compressD(compressionIndexes[3], distr_err[1:end-1,1:end-1,1:end-1], DCD,IDCD, n_par)
+    F[indexes.D] =  D_thet .- XPrime[indexes.D]
+
 
     distr_m_act, distr_k_act, distr_y_act, share_borroweract, GiniWact, I90shareact, I90sharenetact, GiniXact, #=
         =# sdlogxact, P9010Cact, GiniCact, sdlgCact, P9010Iact, GiniIact, sdlogyact, w90shareact, P10Cact, P50Cact, P90Cact =
@@ -206,15 +257,8 @@ function Fsys(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}, m_
     F[indexes.I90sharenet]   = log.(I90sharenet)  - log.(I90sharenetact);
 
     F[indexes.w90share] = log.(w90share)  - log.(w90shareact);
-    F[indexes.GiniW]    = log.(GiniW)   - log.(GiniWact)
+    F[indexes.sdlogy]    = log.(sdlogy)   - log.(sdlogyact)
     F[indexes.GiniC]    = log.(GiniC)   - log.(GiniCact)
-    F[indexes.sdlgC]    = log.(sdlgC)   - log.(sdlgCact)
-    F[indexes.P9010C]   = log.(P9010C)  - log.(P9010Cact)
-    F[indexes.P9010I]   = log.(P9010I)  - log.(P9010Iact)
-    F[indexes.GiniI]    = log.(GiniI)   - log.(GiniIact)
-    F[indexes.P90C]   = log.(P90C)  - log.(P90Cact)
-    F[indexes.P50C]   = log.(P50C)  - log.(P50Cact)
-    F[indexes.P10C]   = log.(P10C)  - log.(P10Cact)
 
     return F
 end

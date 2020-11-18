@@ -20,14 +20,14 @@ Save estimation results to `e_set.save_mode_file`.
 function mode_finding(XSSaggr, A, B, indexes, indexes_aggr, Copula,distrSS, compressionIndexes, m_par, n_par, e_set)
 
   # Load data
-  Data_temp = CSV.read(e_set.data_file; missingstring = "NaN")
-  data_names_temp = names(Data_temp)
+  Data_temp = DataFrame!(CSV.File(e_set.data_file; missingstring = "NaN"))
+  data_names_temp = propertynames(Data_temp)
   for i in data_names_temp
     name_temp = get(e_set.data_rename, i, :none)
     if name_temp == :none
 
     else
-      rename!(Data_temp, i=>name_temp)
+      rename!(Data_temp, Dict(i=>name_temp))
     end
   end
 
@@ -66,14 +66,13 @@ function mode_finding(XSSaggr, A, B, indexes, indexes_aggr, Copula,distrSS, comp
 
   #
   @load e_set.mode_start_file par_final
-  par = par_final[1:length(parnames)]
+  par = copy(par_final)
 
   if e_set.me_treatment != :fixed
     m_par = Flatten.reconstruct(m_par, par[1:length(par) - length(meas_error)])
   else
     m_par = Flatten.reconstruct(m_par, par)
   end
-
 
   ## Prior specification
   priors = collect(metaflatten(m_par, prior)) # model parameters
@@ -82,10 +81,9 @@ function mode_finding(XSSaggr, A, B, indexes, indexes_aggr, Copula,distrSS, comp
   end
 
   LL(pp) = -likeli(pp, Data, Data_missing, H_sel, XSSaggr,A,B, indexes, indexes_aggr, m_par, n_par, e_set, Copula,distrSS, compressionIndexes, priors, meas_error, meas_error_std)[3]
-  ##
 
   func = TwiceDifferentiable(pp -> LL(pp) ,  par)
-  opti = optimize(func, par, NelderMead(), Optim.Options(show_trace=true, store_trace = true, x_tol = 1.0e-3, f_tol = 1.0e-3, iterations = e_set.max_iter_mode))#, Optim.Options(time_limit = 3.0))
+  opti = optimize(func, par, NelderMead(), Optim.Options(show_trace=true, store_trace = true, x_tol = 1.0e-3, f_tol = 1.0e-3, iterations = e_set.max_iter_mode))
   parhat_newton = Optim.minimizer(opti)
 
   par_final = parhat_newton
@@ -98,18 +96,19 @@ function mode_finding(XSSaggr, A, B, indexes, indexes_aggr, Copula,distrSS, comp
     m_par = Flatten.reconstruct(m_par, par_final)
   end
 
- State2Control, LOMstate, alarm_sgu, nk = SGU_estim(XSSaggr,  A, B, m_par, n_par, indexes, indexes_aggr,distrSS; estim = true)
+ State2Control, LOMstate, alarm_sgu, nk = SGU_estim(XSSaggr,  A, B, m_par, n_par, indexes, indexes_aggr, distrSS; estim = true)
 
  smoother_output = likeli(par_final, Data, Data_missing, H_sel, XSSaggr, A, B, indexes, indexes_aggr, m_par, n_par, e_set,
  Copula,distrSS, compressionIndexes, priors, meas_error, meas_error_std; smoother = true)
 
- par_mode = par_final
- @save e_set.save_mode_file par_final posterior_mode meas_error meas_error_std parnames Data Data_missing H_sel priors smoother_output State2Control LOMstate indexes indexes_aggr m_par n_par e_set
-
- hessian_final = Optim.hessian!(func, parhat_newton)
-
+ # first save just because computing the hessian takes so long
+ hessian_final = Matrix{Float64}(I, length(par_final), length(par_final))
  @save e_set.save_mode_file par_final hessian_final posterior_mode meas_error meas_error_std parnames Data Data_missing H_sel priors smoother_output State2Control LOMstate indexes indexes_aggr m_par n_par e_set
 
+ if e_set.compute_hessian == true
+    hessian_final = Optim.hessian!(func, parhat_newton)
+    @save e_set.save_mode_file par_final hessian_final posterior_mode meas_error meas_error_std parnames Data Data_missing H_sel priors smoother_output State2Control LOMstate indexes indexes_aggr m_par n_par e_set
+ end
 
 return par_final, hessian_final, posterior_mode, meas_error, meas_error_std, parnames, Data, Data_missing, H_sel, priors
 end

@@ -2,7 +2,7 @@
 !!! note
     Most of the code of this section is in the folder `HetAgentsFcns`.
 
-The model features uninsured income shocks ``y`` (by assumption, all workers supply same
+The model features uninsured income shocks ``y`` (by assumption, all workers supply the same
 efficiency units of labor [^BBL], so idiosyncratic productivity shocks translate
 to income shocks) and two assets, bonds ``m`` and illiquid capital ``k``. Entrepreneurs
 (last income-state) receive no labor income, but firm profits, while workers additionally
@@ -12,13 +12,14 @@ The steady state equilibrium contains marginal value functions ``V_m`` and ``V_k
 on a three-dimensional grid ``(m \times k \times y)`` and the ergodic joint distribution
 over these idiosyncratic states. We do dimensionality reduction [^BL] by applying
 the Discrete Cosine Transformation to the marginal value functions and approximating
-the joint distribution with a fixed Copula and state-dependent marginals.
+the joint distribution with a copula and state-dependent marginals.
 
-The main function is [`find_SS()`](@ref):
+The main functions are [`find_steadystate()`](@ref) and [`prepare_linearization()`](@ref):
+
+## Overview of `find_steadystate`
 ```@docs
-find_SS
+find_steadystate
 ```
-## Overview of `find_SS()`
 First, we instantiate the parameter `struct`s `ModelParameters` and `NumericalParameters` 
 as `m_par` and `n_par` (see [Parameters](@ref)).
 
@@ -26,15 +27,18 @@ To find the stationary equilibrium, we proceed in roughly the following steps:
 
 1. set number of income states [`ny`] and use the [`Tauchen()`](@ref) method to 
     obtain a grid and a transition matrix of income, given the autocorrelation
-    of the income process [`m_par.ρ_h`]. Then, include entrepreneurial state
-2. find equilibrium capital stock (by finding a root of [`Kdiff()`](@ref)), where
+    of the income process [`m_par.ρ_h`]. Then, include entrepreneurial state.
+2. instantiate the parameter `struct` `NumericalParameters` as `n_par` (see [Parameters](@ref))
+3. find equilibrium capital stock (by finding a root of [`Kdiff()`](@ref)), where
     the supply of capital by households is calculated in [`Ksupply()`](@ref),
     which uses the Endogenous Grid Method (see [`EGM_policyupdate`](@ref))
     to iteratively obtain optimal policies and marginal value functions
-3. calculate other equilibrium quantities and produce distributional
-    summary statistics ([`distrSummaries()`](@ref))
 
-Next, we reduce the dimensionality:
+## Overview of `prepare_linearization`
+```@docs
+prepare_linearization
+```
+We first calculate other equilibrium quantities and produce distributional summary statistics ([`distrSummaries()`](@ref)). Next, we reduce the dimensionality:
 
 1. compute coefficients of the Chebyshev polynomials that serve as basis functions
     for ``V_m`` and ``V_k``, using the Discrete Cosine Transformation (Julia-package
@@ -67,7 +71,7 @@ that has two fields for each variable: steady state value and deviation.
 We also construct the vector `XSSaggr` and the `struct` `indexes_aggr`,
 which are similar to the above but only store (and manage) aggregate variables.
 This is useful for differentiating only with respect to aggregate variables
-in the estimation part (see [`SGU_estim()`](@ref)). 
+in the estimation part (see [`SGU_estim()`](@ref)).
 
 ## Parameters
 The model parameters for the steady state have to be calibrated. We set them
@@ -78,7 +82,7 @@ shocks.
 ModelParameters
 ```
 The numerical parameters contain the grid (and the meshes) on which the
-stationary equilibrium is solved, discretization results of [`find_SS()`](@ref) 
+stationary equilibrium is solved, discretization results of [`find_steadystate()`](@ref) 
 like the transition matrix of income and the joint distribution, and other
 parameters that determine the numerical approximation or solution technique,
 like `reduc` or `sol_algo`.
