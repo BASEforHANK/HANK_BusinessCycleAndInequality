@@ -27,70 +27,30 @@ export LinearResults, linearize_full_model, EstimResults, find_mode, load_mode, 
         Tauchen, EGM_policyupdate, Kdiff, distrSummaries, @generate_equations,
         @make_deriv, @make_deriv_estim, prioreval
 
-include("input_aggregate_names.jl")
-
-aggr_names = [state_names; control_names]
-aggr_names_ascii = [state_names_ascii; control_names_ascii]
-
-distr_names=["GiniC", "GiniX", "sdlogy", "I90share","I90sharenet",  "w90share"]
-
 n_FD = 5 # number of derivatives to be calculated simultaneously,
-# optimal choice depends on CPU and memory of machine
+         # optimal choice depends on CPU and memory of machine
 
+include("3_Model/input_aggregate_names.jl")
 
 # ------------------------------------------------------------------------------
 ## Define Functions
 # ------------------------------------------------------------------------------
-include("Structs.jl")
-include("Estimation/prior.jl")
+include("3_Model/Parameters.jl")
+include("2_NumericalBasics/Structs.jl")
+include("6_Estimation/prior.jl")
 
 e_set = EstimationSettings()
 @make_struct IndexStruct state_names control_names
 @make_struct_aggr IndexStructAggr aggr_names
 
-include("NumericalBasics.jl")
-include("HetAgentsFcns.jl")
-include("LinearizationFunctions.jl")
-include("Estimation.jl")
+include("1_includeLists/include_NumericalBasics.jl")
+include("1_includeLists/include_HetAgentsFcns.jl")
+include("1_includeLists/include_LinearizationFunctions.jl")
+include("1_includeLists/include_Estimation.jl")
 
 @make_fn produce_indexes state_names control_names
 @make_fnaggr produce_indexes_aggr aggr_names
 
-struct SteadyResults
-  XSS
-  XSSaggr
-  indexes
-  indexes_aggr
-  compressionIndexes
-  Copula
-  n_par
-  m_par
-  CDF_SS
-  CDF_m
-  CDF_k
-  CDF_y
-  distrSS
-end
-
-struct LinearResults
-  State2Control
-  LOMstate
-  A
-  B
-  SolutionError
-end
-
-struct EstimResults
-  par_final
-  hessian_final
-  meas_error
-  meas_error_std
-  parnames
-  Data
-  Data_missing
-  H_sel
-  priors
-end
 
 @doc raw"""
     compute_steadystate()
@@ -108,7 +68,8 @@ function compute_steadystate(m_par)
   XSS, XSSaggr, indexes, indexes_aggr, compressionIndexes, Copula, n_par, m_par,
       CDF_SS, CDF_m, CDF_k, CDF_y, distrSS = prepare_linearization(KSS, VmSS, VkSS, distrSS, n_par, m_par)
   
-  if n_par.further_compress
+  # Experimental: Reduce further based on importance in dynamics at initial guess 
+  if n_par.further_compress # not used in baseline
     compressionIndexes, indexes, n_par = control_reduc(compressionIndexes, XSS,
                                          m_par, n_par, indexes, Copula, distrSS,shock_names)
   end
@@ -133,6 +94,9 @@ using [`SGU()`](@ref).
 function linearize_full_model(sr::SteadyResults, m_par::ModelParameters)
     A = zeros(sr.n_par.ntotal, sr.n_par.ntotal)
     B = zeros(sr.n_par.ntotal, sr.n_par.ntotal)
+    if sr.n_par.verbose
+      println("Initial linearization")
+  end
     State2Control, LOMstate, SolutionError, nk, A, B = SGU(sr.XSS, copy(A), copy(B), m_par, sr.n_par, sr.indexes, sr.Copula, sr.compressionIndexes, sr.distrSS; estim = false);  
     # @timev State2Control, LOMstate, SolutionError, nk, A, B = SGU_estim(sr.XSSaggr, copy(A), copy(B), sr.m_par, sr.n_par, sr.indexes, sr.indexes_aggr, sr.distrSS; estim = true)
     return LinearResults(State2Control, LOMstate, A, B, SolutionError)
