@@ -12,6 +12,10 @@ The module runs with Julia 1.5.2. We recommend to use [Julia for VSCode IDE](htt
 ```
 This will install all needed packages in the same state as they were used for the paper. For more on Julia environments, see [`Pkg.jl`](https://julialang.github.io/Pkg.jl/v1/environments/#Using-someone-else's-project).
 
+!!! warning
+    Before you activate the environment, make sure that you are in the main directory, in which the `Manifest.toml` and `Project.toml` files are located. In case you accidentally activated the environment in a subfolder, empty `.toml` files will be created that you need to delete before proceeding in the correct folder.
+
+
 For an introduction, it is easiest to use the Julia script `script.jl` in the `src` folder. Make sure that the folder is the present working directory and that the bottom bar in VSCode shows `Julia env: HANK_BusinessCycleAndInequality`.[^1] Then write
 ```
 push!(LOAD_PATH, pwd())

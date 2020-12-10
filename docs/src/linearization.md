@@ -37,7 +37,7 @@ The function executes the following steps:
 
 ## Overview of `SolveDiffEq()'
 ```@docs
-SolveDiffEq()
+SolveDiffEq
 ```
 - compute linear observation and state transition equations. The solution algorithm is set
     in `n_par.sol_algo`, with the options `:schur` (mentioned above) and `:litx` [^lit]. The results are matrices that map contemporaneous states to controls [`gx`],
