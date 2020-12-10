@@ -30,11 +30,11 @@ The provided `script.jl` then shows how a typical estimation proceeds in three m
 
 ### Setting up your model
 
-To define the aggregate part of the model, include the aggregate model block in `input_aggregate_model.jl`. The model variables are divided into *states* (distribution, productivity, ...) and
+To define the aggregate part of the model, include the aggregate model block in `3_Model\input_aggregate_model.jl`. The model variables are divided into *states* (distribution, productivity, ...) and
 *controls* (consumption policy or marginal utilities, prices, aggregate capital stock, ...). The aggregate variables (i.e. excluding the distribution and marginal utilities) are defined
- in `include_aggregate_names` and their steady states in `input_aggregate_steady_state`. Include model parameters in `struct ModelParameters` in `Structs.jl`.
+ in `3_Model\include_aggregate_names` and their steady states in `3_Model\input_aggregate_steady_state`. Include model parameters in `struct ModelParameters` in `3_Model\Parameters.jl`.
 
-The file `Structs.jl` contains three structures to provide model parameters, numerical parameters, and estimation settings. In additon, it contains two macros that automatically create structures that contain the model variables.
+The file `Parameters.jl` contains three structures to provide model parameters, numerical parameters, and estimation settings. In additon, it contains two macros that automatically create structures that contain the model variables.
 
 The model parameters for the steady state have to be calibrated. We set them in the `struct` [`ModelParameters`](@ref). It also contains all other parameters that are estimated, including the stochastic process-parameters for the aggregate shocks. Each model parameter has a line of code. It starts with the parameter name as it is used in the code and a default value. The next two entries are its ascii name and its name for LaTeX output. The fourth entry is the prior if the parameter is to be estimated. Please see the [Distributions.jl](https://github.com/JuliaStats/Distributions.jl)-package for available options. The fifth entry is a Boolean whether the parameter should be estimated (`true`) or not (`false`)
 
@@ -70,6 +70,8 @@ in the instance `lr` of the `struct` `LinearResults` (see [`linearize_full_model
 While solving for the first-order dynamics of the full model takes a few seconds (after having been compiled, i.e. after the first run),
 a factorization result [^BBL] makes it possible to only solve the *aggregate* part of the model
 when estimating the parameters (see [`SGU_estim()`](@ref)), which significantly reduces its computation time.
+
+Both [`SGU()`](@ref) and [`SGU_estim()`](@ref) call [`SolveDiffEq()`](@ref) to obtain a solution to the linearized difference equation.
 
 ### Estimation of model parameters
 Having obtained `SteadyResults` `sr` and `LinearResults` `lr`, the command

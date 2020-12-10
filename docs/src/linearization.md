@@ -29,21 +29,21 @@ The function executes the following steps:
     compressed states/controls (`Γ` and `DC`,`IDC`)
 - calculate the first derivative of [`Fsys()`](@ref) with respect to `X` and `XPrime`.
     We use automatic differentiation (implemented in Julia by the package `ForwardDiff`).
-    Partial derivatives are calculated in parallel, with chunk size `n_FD` (see [`@make_deriv`](@ref)).
-    Additionally, we manually set the partial derivatives of contemporaneous marginal value
-    functions and the future marginal distributions [^BL].
+    Partial derivatives are calculated using the `ForwardDiff.jacobian()` function.
+    We exploit that some partial derivatives have known values (contemporaneous marginal value
+    functions and the future marginal distributions) and set them directly instead of calculating them [^BL].
 
-!!! note
-    `n_FD` is set as a global variable in the main script `HANKEstim.jl`.
+- compute linear observation and state transition equations using the [`SolveDiffEq()`](@ref) function
 
+## Overview of `SolveDiffEq()'
+```@docs
+SolveDiffEq()
+```
 - compute linear observation and state transition equations. The solution algorithm is set
-    in `n_par.sol_algo`, with the options `:schur` (mentioned above) and `:lit` [^lit]. The results are matrices that map contemporaneous states to controls [`gx`],
+    in `n_par.sol_algo`, with the options `:schur` (mentioned above) and `:litx` [^lit]. The results are matrices that map contemporaneous states to controls [`gx`],
     or contemporaneous states to future states [`hx`]
 
-### Called functions / macros
-```@docs
-@make_deriv
-```
+
 ## Overview of `Fsys()`
 ```@docs
 Fsys
