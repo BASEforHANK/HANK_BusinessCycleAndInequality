@@ -27,9 +27,6 @@ export LinearResults, linearize_full_model, EstimResults, find_mode, load_mode, 
         Tauchen, EGM_policyupdate, Kdiff, distrSummaries, @generate_equations,
         @make_deriv, @make_deriv_estim, prioreval
 
-n_FD = 5 # number of derivatives to be calculated simultaneously,
-         # optimal choice depends on CPU and memory of machine
-
 include("3_Model/input_aggregate_names.jl")
 
 # ------------------------------------------------------------------------------
