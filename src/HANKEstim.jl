@@ -21,8 +21,8 @@ using JSON, Roots
 export LinearResults, linearize_full_model, EstimResults, find_mode, load_mode, montecarlo,
         find_steadystate, prepare_linearization, @writeXSS, @make_fn, @make_fnaggr,
         @make_struct, @make_struct_aggr, compute_steadystate, SteadyResults,
-        mylinearinterpolate3, Ksupply, Fsys, SGU, Fsys_agg, SGU_estim, mode_finding,
-        likeli, kalman_filter, kalman_filter_smoother, measurement_error, rwmh,
+        mylinearinterpolate3, Ksupply, Fsys, SGU, Fsys_agg, SGU_estim, SolveDiffEq,
+        mode_finding, likeli, kalman_filter, kalman_filter_smoother, measurement_error, rwmh,
         ModelParameters, NumericalParameters, EstimationSettings,
         Tauchen, EGM_policyupdate, Kdiff, distrSummaries, @generate_equations,
         @make_deriv, @make_deriv_estim, prioreval

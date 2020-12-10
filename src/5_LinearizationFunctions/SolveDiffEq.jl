@@ -1,5 +1,5 @@
 @doc raw"""
-    SolveDiffEq(A,B, n_par;estim)
+    SolveDiffEq(A, B, n_par; estim)
 
 Calculate the solution to the linearized difference equations defined
 B x_t = A x_{t+1}.
