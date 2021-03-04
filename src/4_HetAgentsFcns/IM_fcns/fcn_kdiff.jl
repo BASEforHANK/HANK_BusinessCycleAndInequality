@@ -24,7 +24,7 @@ function Kdiff(K_guess::Float64, n_par::NumericalParameters, m_par::ModelParamet
     profits         = (1.0 .- 1.0 ./ m_par.μ) .* output(K_guess, 1.0, N, m_par) # Profit income
     RB              = m_par.RB ./ m_par.π                                       # Real return on liquid assets
     eff_int         = (RB .+ m_par.Rbar .* (n_par.mesh_m .<= 0.0))              # effective rate depending on assets
-    GHHFA           = ((m_par.γ - m_par.τ_prog) / (m_par.γ + 1.0))              # transformation (scaling) for composite good
+    GHHFA           = ((m_par.γ + m_par.τ_prog) / (m_par.γ + 1.0))              # transformation (scaling) for composite good
     
     #----------------------------------------------------------------------------
     # Array (inc) to store incomes
@@ -47,7 +47,7 @@ function Kdiff(K_guess::Float64, n_par::NumericalParameters, m_par::ModelParamet
     av_tax_rate     = dot((incgross - incnet), distr_y) ./ dot(incgross, distr_y)
 
     inc[1]          = GHHFA .* m_par.τ_lev .* (n_par.mesh_y .* mcw .* w .* N ./ n_par.H).^(1.0 - m_par.τ_prog) .+
-                        (1.0 .- mcw) .* w .* N .* (1.0 .- av_tax_rate)          # labor income net of taxes incl. union profits
+                        (1.0 .- mcw) .* w .* N .* (1.0 .- av_tax_rate) .* n_par.HW         # labor income net of taxes incl. union profits
                         
     inc[1][:,:,end] = m_par.τ_lev .* (n_par.mesh_y[:, :, end] * profits).^(1.0 - m_par.τ_prog) # profit income net of taxes
     

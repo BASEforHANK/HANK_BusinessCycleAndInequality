@@ -121,7 +121,7 @@ julia> n_par = NumericalParameters(mmin = -6.6, mmax = 1000)
 @with_kw struct NumericalParameters
 	# Numerical Parameters to be set in advance
 	ϵ::Float64         	= 1.0e-5 # precision (is reset in the code to 1.0e-10)
-	ny_refined::Int    	= 11     # ngrid income for refinement
+	ny_refined::Int    	= 21     # ngrid income for refinement
 	nk::Int            	= 80     # ngrid illiquid assets (capital)
 	nm::Int            	= 80     # ngrid liquid assets (bonds)
 	kmin::Float64      	= 0.0    # gridmin capital
@@ -169,7 +169,8 @@ julia> n_par = NumericalParameters(mmin = -6.6, mmax = 1000)
 
 	bounds_y::Array{Float64,1} = [0.5; 1; 1.5] 	# (placeholder) bonds of income bins (overwritten by Tauchen)
 	H::Float64           = 1.0 					# stationary equilibrium average human capital
-	
+	HW::Float64           = 1.0 		    	# stationary equilibrium fraction workers
+
 	Asel::Array{Bool,2} = falses(10,10)			# selector matrix (can be deleted?)
 	Bsel::Array{Bool,2} = falses(10,10)			# selector matrix (can be deleted?)
 	
@@ -204,12 +205,12 @@ stored in the fields `mode_start_file`, `data_file`, `save_mode_file` and `save_
 	mode_start_file::String 				= "7_Saves/HANKXplus_postmean.jld2"
 
 	data_file::String 						= "bbl_data_inequality.csv"
-	save_mode_file::String 					= "7_Saves/HANKXplus_mode.jld2"
+	save_mode_file::String 					= "7_Saves/HANKXplus_mode_new.jld2"
 	save_posterior_file::String 			= "7_Saves/HANKXplus_chain.jld2"
 
 	fd_flag::Bool 							= any(growth_rate_select)
-	max_iter_mode::Int 						= 2
-	estimate_model::Bool 					= false
+	max_iter_mode::Int 						= 10000
+	estimate_model::Bool 					= true
 	compute_hessian::Bool 					= false
 	multi_chain_init::Bool 					= false
 	ndraws::Int      						= 1
