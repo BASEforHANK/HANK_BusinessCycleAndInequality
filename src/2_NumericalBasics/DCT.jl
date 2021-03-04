@@ -68,6 +68,11 @@ function compress(compressionIndexes::AbstractArray, XU::AbstractArray,
         kk[j] = div(compressionIndexes[j]- (zz[j]-1)*n_par.nm*n_par.nk, n_par.nk) +1
         mm[j] = compressionIndexes[j] - (zz[j]-1)*n_par.nm*n_par.nk -(kk[j]-1)*n_par.nk
     end
+    # for j  = 1:length(compressionIndexes) # index to subs
+        # zz[j] = CartesianIndices(n_par.mesh_m)[compressionIndexes[j]][3]
+        # kk[j] = CartesianIndices(n_par.mesh_m)[compressionIndexes[j]][2]
+        # mm[j] = CartesianIndices(n_par.mesh_m)[compressionIndexes[j]][1]
+    # end
     # unique(mm) unique(kk) identify the grid elements retained in the
     # discrete cosine transformation
 
@@ -107,6 +112,11 @@ function compressD(compressionIndexes::AbstractArray, XU::AbstractArray,
         kk[j] = div(compressionIndexes[j]- (zz[j]-1)*(n_par.nm-1)*(n_par.nk-1), n_par.nk-1) +1
         mm[j] = compressionIndexes[j] - (zz[j]-1)*(n_par.nm-1)*(n_par.nk-1) -(kk[j]-1)*(n_par.nk-1)
     end
+    # for j  = 1:length(compressionIndexes) # index to subs
+        # zz[j] = CartesianIndices(n_par.mesh_m)[compressionIndexes[j]][3]
+        # kk[j] = CartesianIndices(n_par.mesh_m)[compressionIndexes[j]][2]
+        # mm[j] = CartesianIndices(n_par.mesh_m)[compressionIndexes[j]][1]
+    # end
     # unique(mm) unique(kk) identify the grid elements retained in the
     # discrete cosine transformation
 

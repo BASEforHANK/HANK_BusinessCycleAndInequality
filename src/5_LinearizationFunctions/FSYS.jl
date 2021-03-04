@@ -140,7 +140,11 @@ function Fsys(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}, m_
     KP           = dot(n_par.grid_k,distr_k[:])
     F[indexes.K] = log.(K)     - log.(KP)
     BP           = dot(n_par.grid_m,distr_m[:])
-    F[indexes.B] = log.(B)     - log.(BP)#
+    F[indexes.B] = log.(B)     - log.(BP)
+
+    BDact = -sum(distr_m.*(n_par.grid_m.<0).*n_par.grid_m)
+
+    F[indexes.BD]= log.(BD)  - log.(BDact)
 
     # Average Human Capital =
     # average productivity (at the productivit grid, used to normalize to 0)
@@ -153,10 +157,10 @@ function Fsys(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}, m_
     eff_int      = ((RB .* A)           .+ (m_par.Rbar .* (n_par.mesh_m.<=0.0))) ./ π # effective rate (need to check timing below and inflation)
     eff_intPrime = (RBPrime .* APrime .+ (m_par.Rbar.*(n_par.mesh_m.<=0.0))) ./ πPrime
 
-    GHHFA=((m_par.γ - τprog)/(m_par.γ+1)) # transformation (scaling) for composite good
+    GHHFA=((m_par.γ + τprog)/(m_par.γ+1)) # transformation (scaling) for composite good
     tax_prog_scale = (m_par.γ + m_par.τ_prog)/((m_par.γ + τprog))
     inc =[  GHHFA.*τlev.*((n_par.mesh_y/H).^tax_prog_scale .*mcw.*w.*N./(Ht)).^(1.0-τprog).+
-            (unionprofits).*(1.0 .- av_tax_rate),# labor income (NEW)
+            (unionprofits).*(1.0 .- av_tax_rate).* n_par.HW,# labor income (NEW)
             (r .- 1.0).* n_par.mesh_k, # rental income
             eff_int .* n_par.mesh_m, # liquid asset Income
             n_par.mesh_k .* q,

@@ -143,7 +143,7 @@ function SolveDiffEq(A::Array,B::Array, n_par::NumericalParameters, estim=false)
         if rank(z11) < nk
             @warn "invertibility condition violated"
             hx = Array{Float64}(undef, n_par.nstates, n_par.nstates)
-            gx = Array{Float64}(undef, length(compressionIndexes) + 13, n_par.nstates)
+            gx = Array{Float64}(undef, n_par.ncontrols, n_par.nstates)
             alarm_sgu = true
             return gx, hx, alarm_sgu, nk, A, B
         end

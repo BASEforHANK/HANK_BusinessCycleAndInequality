@@ -50,7 +50,7 @@ function SGU(XSS::Array,A::Array,B::Array, m_par::ModelParameters, n_par::Numeri
     # Check whether Steady state solves the difference equation
     ############################################################################
     length_X0 = indexes.profits # Convention is that profits is the last control
-    # X0 = zeros(length_X0)
+    # X0 = zeros(length_X0) .+ ForwardDiff.Dual(0.0,tuple(zeros(5)...))
     # F  = Fsys(X0,X0,XSS,m_par,n_par,indexes,Γ,compressionIndexes,DC, IDC, DCD, IDCD)
     # if maximum(abs.(F))/10>n_par.ϵ
     #     @warn  "F=0 is not at required precision"

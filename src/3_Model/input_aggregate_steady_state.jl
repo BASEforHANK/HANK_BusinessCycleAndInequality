@@ -20,7 +20,11 @@ LPXASS    = 1 + rSS - RBSS
 
 πSS       = 1.0
 πwSS      = 1.0
-CSS       = (YSS - m_par.δ_0 * KSS - GSS)
+
+BDSS = -sum(distr_m_SS.*(n_par.grid_m.<0).*n_par.grid_m)
+
+CSS       = (YSS - m_par.δ_0 * KSS - GSS - m_par.Rbar*BDSS)
+
 qSS       = 1.0
 mcSS      = 1.0 ./ m_par.μ
 mcwSS     = 1.0 ./ m_par.μw

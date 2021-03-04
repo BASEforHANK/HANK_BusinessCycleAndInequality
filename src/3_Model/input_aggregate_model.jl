@@ -169,10 +169,11 @@ F[indexes.LPXA]         = log.(LPXA)                - (log((qPrime + rPrime - 1.
 F[indexes.I]            = KPrime .-  K .* (1.0 .- depr)  .- ZI .* I .* (1.0 .- m_par.ϕ ./ 2.0 .* (Igrowth -1.0).^2.0)           # Capital accumulation equation
 F[indexes.N]            = log.(N) - log.(((1.0 - τprog) * τlev * (mcw .* w).^(1.0 - τprog)).^(1.0 / (m_par.γ + τprog)) .* Ht)   # labor supply
 F[indexes.Y]            = log.(Y) - log.(Z .* N .^(1.0 .- m_par.α) .* Kserv .^m_par.α)                                          # production function
-F[indexes.C]            = log.(Y .- G .- I .+ (A .- 1.0) .* RB .* B ./ π .- (δ_1 * (u - 1.0) + δ_2 / 2.0 * (u - 1.0)^2.0).*K) .- log(C) # Resource constraint
+F[indexes.C]            = log.(Y .- G .- I .- BD*m_par.Rbar .+ (A .- 1.0) .* RB .* B ./ π .- (δ_1 * (u - 1.0) + δ_2 / 2.0 * (u - 1.0)^2.0).*K) .- log(C) # Resource constraint
 
 # Error Term on prices/aggregate summary vars (logarithmic, controls), here difference to SS value averages
-F[indexes.K]            = log.(K)     - Xss[indexes.KSS]                                                        # Capital market clearing
+F[indexes.K]            = log.(K)     - Xss[indexes.KSS]                                                            # Capital market clearing
+F[indexes.BD]           = log.(BD)    - Xss[indexes.BDSS]                                                        # IOUs            
 F[indexes.B]            = log.(B)     - log.( exp(Xss[indexes.BSS]) + log.(Retained) + log.(union_Retained) )   # Bond market clearing
 F[indexes.BY]           = log.(BY)    - log.(B/Y)                                                               # Bond to Output ratio
 F[indexes.TY]           = log.(TY)    - log.(T/Y)                                                               # Tax to output ratio

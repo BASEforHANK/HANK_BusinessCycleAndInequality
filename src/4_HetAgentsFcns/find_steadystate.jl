@@ -77,6 +77,7 @@ grid_y                  = [exp.(grid_y .* m_par.σ_h ./ sqrt(1.0 .- m_par.ρ_h.^
 Paux                    = Π^1000
 distr_y                 = Paux[1, :]                            # stationary income distribution
 H                       = (distr_y[1:end-1]'*grid_y[1:end-1])   # average human capital
+HW                      = (1.0/(1.0-Paux[end,end]))             # fraction workers
 
 naggrstates             = length(state_names)                   # number of aggregate states
 naggrcontrols           = length(control_names)                 # number of aggregate controls
@@ -84,7 +85,7 @@ naggr                   = length(aggr_names)                    # number of all 
 
 # Write changed parameter values to n_par
 n_par                   = NumericalParameters(ny = ny+1, bounds_y = bounds, grid_y = grid_y, 
-                        Π = Π, H = H, naggrstates = naggrstates, naggrcontrols = naggrcontrols,
+                        Π = Π, H = H, HW = HW, naggrstates = naggrstates, naggrcontrols = naggrcontrols,
                         aggr_names  = aggr_names, naggr = naggr,ϵ = 1e-10, 
                         )
 n_par.grid_m[

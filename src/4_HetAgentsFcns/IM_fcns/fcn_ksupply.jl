@@ -46,7 +46,7 @@ function Ksupply(RB_guess::Float64, R_guess::Float64, n_par::NumericalParameters
     c_a_star            = zeros(n)
     c_n_star            = zeros(n)
 
-    while dist > n_par.ϵ # Iterate consumption policies until converegence
+    while dist > n_par.ϵ && count < 1000 # Iterate consumption policies until converegence
         count           = count + 1
         # Take expectations for labor income change
         EVk             = reshape(reshape(Vk, (n[1] .* n[2], n[3])) * n_par.Π', (n[1], n[2], n[3]))
@@ -69,7 +69,8 @@ function Ksupply(RB_guess::Float64, R_guess::Float64, n_par::NumericalParameters
         Vm              = Vm_new
         Vk              = Vk_new
     end
-
+    println(dist)
+    
     #------------------------------------------------------
     # Find stationary distribution (Is direct transition better for large model?)
     #------------------------------------------------------

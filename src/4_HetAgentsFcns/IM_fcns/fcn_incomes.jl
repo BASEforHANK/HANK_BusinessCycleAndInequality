@@ -7,7 +7,8 @@ function incomes(n_par,m_par,KSS,distrSS)
     ProfitsSS = (1.0 -1.0 / m_par.μ) .* YSS
     ISS       = m_par.δ_0 * KSS
     RBSS      = m_par.RB
-    
+    GHHFA     = ((m_par.γ + m_par.τ_prog) / (m_par.γ + 1.0))              # transformation (scaling) for composite good
+
     
     eff_int   = (RBSS .+ (m_par.Rbar .* (n_par.mesh_m.<=0.0))) # effective rate
 
@@ -17,7 +18,7 @@ function incomes(n_par,m_par,KSS,distrSS)
     mcw = 1.0 ./ m_par.μw
 
     incgross =[  (n_par.mesh_y .* (1. /m_par.μw).*wSS.*NSS./n_par.H).+
-        (1.0 .- 1.0 ./ m_par.μw).*wSS.*NSS,# labor income (NEW)
+        (1.0 .- 1.0 ./ m_par.μw).*wSS.*NSS.* n_par.HW,# labor income (NEW)
         interest(KSS,1.0 / m_par.μ, NSS, m_par).* n_par.mesh_k, # rental income
         eff_int .* n_par.mesh_m, # liquid asset Income
         n_par.mesh_k,
@@ -25,8 +26,8 @@ function incomes(n_par,m_par,KSS,distrSS)
     incgross[1][:,:,end].= n_par.mesh_y[:,:,end] .* ProfitsSS  # profit income net of taxes
     incgross[5][:,:,end].= n_par.mesh_y[:,:,end] .* ProfitsSS  # profit income net of taxes
 
-    inc =[  (((m_par.γ - m_par.τ_prog)/(m_par.γ+1)).*m_par.τ_lev.*(n_par.mesh_y.*1.0 ./m_par.μw.*wSS.*NSS./n_par.H).^(1.0-m_par.τ_prog)).+
-        ((1.0 .- 1.0 ./ m_par.μw).*wSS.*NSS),# labor income (NEW)
+    inc =[  (GHHFA.*m_par.τ_lev.*(n_par.mesh_y.*1.0 ./m_par.μw.*wSS.*NSS./n_par.H).^(1.0-m_par.τ_prog)).+
+        ((1.0 .- 1.0 ./ m_par.μw).*wSS.*NSS) .* n_par.HW,# labor income (NEW)
         interest(KSS,1.0 / m_par.μ, NSS, m_par).* n_par.mesh_k, # rental income
         eff_int .* n_par.mesh_m, # liquid asset Income
         n_par.mesh_k,
@@ -41,11 +42,11 @@ function incomes(n_par,m_par,KSS,distrSS)
     av_tax_rateSS = (distrSS[:]' * taxrev[:])./(distrSS[:]' * incgrossaux[:])
 
 # apply taxes to union profits
-    inc[1] =(((m_par.γ - m_par.τ_prog)/(m_par.γ+1)).*m_par.τ_lev.*(n_par.mesh_y.*1.0 ./m_par.μw.*wSS.*NSS./n_par.H).^(1.0-m_par.τ_prog)).+ # labor income
-        ((1.0 .- 1.0 ./ m_par.μw).*wSS.*NSS).*(1.0 .- av_tax_rateSS)# labor union income
+    inc[1] =(GHHFA.*m_par.τ_lev.*(n_par.mesh_y.*1.0 ./m_par.μw.*wSS.*NSS./n_par.H).^(1.0-m_par.τ_prog)).+ # labor income
+        ((1.0 .- 1.0 ./ m_par.μw).*wSS.*NSS).*(1.0 .- av_tax_rateSS).* n_par.HW# labor union income
     inc[1][:,:,end].= m_par.τ_lev.*(n_par.mesh_y[:,:,end] .* ProfitsSS).^(1.0-m_par.τ_prog)
     inc[6] =(m_par.τ_lev.*(n_par.mesh_y.*1.0 ./m_par.μw.*wSS.*NSS./n_par.H).^(1.0-m_par.τ_prog)).+ # labor income
-        ((1.0 .- 1.0 ./ m_par.μw).*wSS.*NSS).*(1.0 .- av_tax_rateSS)# labor union income
+        ((1.0 .- 1.0 ./ m_par.μw).*wSS.*NSS).*(1.0 .- av_tax_rateSS).* n_par.HW# labor union income
     inc[6][:,:,end].= m_par.τ_lev.*(n_par.mesh_y[:,:,end] .* ProfitsSS).^(1.0-m_par.τ_prog)
 
 
