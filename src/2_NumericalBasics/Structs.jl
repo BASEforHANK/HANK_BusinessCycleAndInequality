@@ -1,11 +1,14 @@
 @doc raw"""
-@make_struct_aggr(struct_name,a_names) 
+@make_struct_aggr(struct_name) 
 
-Make `struct` `struct_name` with two fields for every variable name in `a_names`
+Make `struct` `struct_name` with two fields for every variable name in `aggr_names`
 (for steady state value and for deviation from it).
+
+# Requires
+(module) global `aggr_names`
 """
-macro make_struct_aggr(struct_name, a_names)
-	a_names 			= Symbol.(eval((a_names)))
+macro make_struct_aggr(struct_name)
+	a_names 			= Symbol.(aggr_names)
 	n_states 			= length(a_names)
 
 	fields_states 	  	= [:($(a_names[i])::Int) for i = 1:n_states]
@@ -21,24 +24,27 @@ macro make_struct_aggr(struct_name, a_names)
 end
 
 @doc raw"""
-@make_struct(struct_name,s_names,c_names)
+@make_struct(struct_name)
 
 Make `struct` `struct_name` with two fields for every variable name in `s_names` (state variables)
 and `c_names` (control variables), together with fields for distribution-states
 and marginal value function-controls.
+
+# Requires
+(module) globals `state_names`, `control_names`
 """
-macro make_struct(struct_name, s_names, c_names)
+macro make_struct(struct_name)
 	# fields=[:($(entry.args[1])::$(entry.args[2])) for entry in var_names]
 	# fieldsSS=[:($(Symbol((entry.args[1]), "SS"))::$(entry.args[2])) for entry in var_names]
-	state_names 		= Symbol.(eval((s_names)))
-	n_states 			= length(state_names)
-	control_names 		= Symbol.(eval((c_names)))
-	n_controls 			= length(control_names)
+	s_names 		    = Symbol.(state_names)
+	n_states 			= length(s_names)
+	c_names 			= Symbol.(control_names)
+	n_controls 			= length(c_names)
 
-	fields_states 	 	= [:($(state_names[i])::Int) for i = 1:n_states]
-	fieldsSS_states   	= [:($(Symbol(state_names[i], "SS")) ::Int) for i = 1:n_states]
-	fields_controls   	= [:($(control_names[i])::Int) for i = 1:n_controls]
-	fieldsSS_controls 	= [:($(Symbol(control_names[i], "SS")) ::Int) for i =1:n_controls]
+	fields_states 	 	= [:($(s_names[i])::Int) for i = 1:n_states]
+	fieldsSS_states   	= [:($(Symbol(s_names[i], "SS")) ::Int) for i = 1:n_states]
+	fields_controls   	= [:($(c_names[i])::Int) for i = 1:n_controls]
+	fieldsSS_controls 	= [:($(Symbol(c_names[i], "SS")) ::Int) for i =1:n_controls]
 
 	# fields=[:($(Symbol(i, "::Int"))) for i in var_names]
 	# fieldsSS=[:($(Symbol(i, "SS::Int"))) for i in var_names]

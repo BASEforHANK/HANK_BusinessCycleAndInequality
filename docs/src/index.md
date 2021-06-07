@@ -4,9 +4,9 @@ This manual documents the Julia module **HANKEstim**, that implements the soluti
 estimation of a heterogeneous-agent New-Keynesian (HANK) model. It accompanies the paper
 [Shocks, Frictions, and Inequality in US Business Cycles](https://www.benjaminborn.de/publication/bbl_inequality_2020/).
 ## First steps
-The module runs with Julia 1.5.2. We recommend to use [Julia for VSCode IDE](https://www.julia-vscode.org) as a front-end to Julia. To get started with the toolbox, simply download or clone the folder, e.g. via `git clone`, `cd` to the project directory and call
+The module runs with Julia 1.6.1. We recommend to use [Julia for VSCode IDE](https://www.julia-vscode.org) as a front-end to Julia. To get started with the toolbox, simply download or clone the folder, e.g. via `git clone`, `cd` to the project directory and call
 ```julia-repl
-(v1.5) pkg> activate .
+(v1.6) pkg> activate .
 
 (HANK_BusinessCycleAndInequality) pkg> instantiate
 ```

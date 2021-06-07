@@ -23,7 +23,7 @@ julia> priors = collect(metaflatten(m_par, prior))
 	ξ::T = 4.0    		| "xi" 			| L"\xi" 		| _ 										| false # risk aversion
 	γ::T = 2.0    		| "gamma" 		| L"\gamma" 	|  _  										| false # inverse Frisch elasticity
 	β::T = 0.9842 		| "beta" 		| L"\beta" 		|  _  										| false # discount factor
-	λ::T = 0.095 		| "lambda"  	| L"\lambda" 	| _  										| false # adjustment probability	λ::T = 0.07 | "lambda"  | L"\lambda" | _  | false  # adjustment probability
+	λ::T = 0.095 		| "lambda"  	| L"\lambda" 	| _  										| false # adjustment probability
 	γ_scale ::T = 0.2 	| "gamma_scale" | L"\gamma_{scale}"| _  									| false # disutiltiy of labor
 
 	# Individual income process
@@ -121,7 +121,7 @@ julia> n_par = NumericalParameters(mmin = -6.6, mmax = 1000)
 @with_kw struct NumericalParameters
 	# Numerical Parameters to be set in advance
 	ϵ::Float64         	= 1.0e-5 # precision (is reset in the code to 1.0e-10)
-	ny_refined::Int    	= 21     # ngrid income for refinement
+	ny_refined::Int    	= 21    # ngrid income for refinement
 	nk::Int            	= 80     # ngrid illiquid assets (capital)
 	nm::Int            	= 80     # ngrid liquid assets (bonds)
 	kmin::Float64      	= 0.0    # gridmin capital
@@ -149,7 +149,7 @@ julia> n_par = NumericalParameters(mmin = -6.6, mmax = 1000)
 	ncontrols::Int	   = 16 							# (placeholder for the) number of controls in total
 	ntotal::Int 	   = nstates+ncontrols 				# (placeholder for the) number of states+ controls in total
 	
-	aggr_names::Array{String,1} = ["Something"] 		# Placeholder for names of aggreagates
+	aggr_names::Array{String,1} = ["Something"] 		# Placeholder for names of aggregates
 	
 	Π::Matrix{Float64}       	= [0.9 0.1; 0.1 0.9] 	# transition matrix income
 	
@@ -205,13 +205,13 @@ stored in the fields `mode_start_file`, `data_file`, `save_mode_file` and `save_
 	mode_start_file::String 				= "7_Saves/HANKXplus_postmean.jld2"
 
 	data_file::String 						= "bbl_data_inequality.csv"
-	save_mode_file::String 					= "7_Saves/HANKXplus_mode_new.jld2"
+	save_mode_file::String 					= "7_Saves/HANKXplus_mode.jld2"
 	save_posterior_file::String 			= "7_Saves/HANKXplus_chain.jld2"
 
 	fd_flag::Bool 							= any(growth_rate_select)
 	max_iter_mode::Int 						= 10000
-	estimate_model::Bool 					= true
-	compute_hessian::Bool 					= false
+	estimate_model::Bool 					= false
+	compute_hessian::Bool 					= true
 	multi_chain_init::Bool 					= false
 	ndraws::Int      						= 1
 	burnin::Int      						= 1

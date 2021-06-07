@@ -1,5 +1,5 @@
-__precompile__(false)
-# Code runs on Julia 1.5
+# __precompile__(false)
+# Code runs on Julia 1.6
 # ------------------------------------------------------------------------------
 ## Package Calls
 # ------------------------------------------------------------------------------
@@ -14,8 +14,8 @@ using Plots, Distributions, BenchmarkTools, JLD2, FileIO, DataFrames, ForwardDif
 using SparseArrays, LinearAlgebra, Random, LaTeXStrings
 using KrylovKit; using SpecialFunctions: erf; using FFTW: dct
 using Parameters, Setfield, MCMCChains, StatsPlots, Optim, CSV, OrderedCollections
-using Flatten; import Flatten: flattenable
-using FieldMetadata; import FieldMetadata: prior, label
+using Flatten, FieldMetadata; import Flatten: flattenable
+# using FieldMetadata; import FieldMetadata: @prior, prior, @label, label
 using JSON, Roots
 
 export LinearResults, linearize_full_model, EstimResults, find_mode, load_mode, montecarlo,
@@ -37,16 +37,16 @@ include("2_NumericalBasics/Structs.jl")
 include("6_Estimation/prior.jl")
 
 e_set = EstimationSettings()
-@make_struct IndexStruct state_names control_names
-@make_struct_aggr IndexStructAggr aggr_names
+@make_struct IndexStruct
+@make_struct_aggr IndexStructAggr
 
 include("1_includeLists/include_NumericalBasics.jl")
 include("1_includeLists/include_HetAgentsFcns.jl")
 include("1_includeLists/include_LinearizationFunctions.jl")
 include("1_includeLists/include_Estimation.jl")
 
-@make_fn produce_indexes state_names control_names
-@make_fnaggr produce_indexes_aggr aggr_names
+@make_fn produce_indexes
+@make_fnaggr produce_indexes_aggr
 
 
 @doc raw"""
@@ -121,7 +121,7 @@ function load_mode(sr::SteadyResults;file::String = e_set.mode_start_file)
     @load file par_final hessian_final meas_error meas_error_std parnames Data Data_missing H_sel priors
 
     # Load data
-    Data_temp = DataFrame!(CSV.File(e_set.data_file; missingstring = "NaN"))
+    Data_temp = DataFrame(CSV.File(e_set.data_file; missingstring = "NaN"))
     data_names_temp = propertynames(Data_temp)
     for i in data_names_temp
       name_temp = get(e_set.data_rename, i, :none)

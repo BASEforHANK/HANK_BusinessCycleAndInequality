@@ -20,7 +20,7 @@ Save estimation results to `e_set.save_mode_file`.
 function mode_finding(XSSaggr, A, B, indexes, indexes_aggr, Copula,distrSS, compressionIndexes, m_par, n_par, e_set)
 
   # Load data
-  Data_temp = DataFrame!(CSV.File(e_set.data_file; missingstring = "NaN"))
+  Data_temp = DataFrame(CSV.File(e_set.data_file; missingstring = "NaN"))
   data_names_temp = propertynames(Data_temp)
   for i in data_names_temp
     name_temp = get(e_set.data_rename, i, :none)
