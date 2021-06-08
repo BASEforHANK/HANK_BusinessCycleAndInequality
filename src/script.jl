@@ -2,10 +2,13 @@
 # otherwise adjust the load path
 # cd("HANK_BusinessCycleAndInequality/src")
 
+# pre-process user inputs for model setup
+include("2_NumericalBasics/PreprocessInputs.jl")
+
 push!(LOAD_PATH, pwd())
 using HANKEstim
 
-#initialize model parameters
+#initialize model parameters˝øø
 m_par = ModelParameters()
 # load estimated parameters from HANKX+ estimation and update model parameters
 HANKEstim.@load "7_Saves/HANKXplus_postmean.jld2" par_final
@@ -45,6 +48,6 @@ if HANKEstim.e_set.estimate_model == true
     # warning: estimation might take a long time!
     er = find_mode(sr, lr, m_par)
     # loading the mode only works with a full mode save file not our provided file
-    er = load_mode(sr; file = HANKEstim.e_set.save_mode_file)
+    # er = load_mode(sr; file = HANKEstim.e_set.save_mode_file)
     # montecarlo(sr, lr, er, m_par)
 end

@@ -95,7 +95,8 @@ function prepare_linearization(KSS, VmSS, VkSS, distrSS, n_par, m_par)
     
     # ------------------------------------------------------------------------------
     
-    @include "../3_Model/input_aggregate_steady_state.jl"
+    # aggregate steady state marker
+    # @include "../3_Model/input_aggregate_steady_state.jl"
     
     # write to XSS vector
     @writeXSS

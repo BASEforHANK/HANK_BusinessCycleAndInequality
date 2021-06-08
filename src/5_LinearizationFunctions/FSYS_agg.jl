@@ -23,10 +23,12 @@ function Fsys_agg(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}
     # rPrime  = exp.(Xss[indexes.rSS] .+ XPrime[indexes.r])
     ############################################################################
 
-    @generate_equations(aggr_names)
+    # @generate_equations(aggr_names)
+    @generate_equations()
 
     # Take aggregate model from model file
-    @include "../3_Model/input_aggregate_model.jl"
+    # aggregate model marker
+    # @include "../3_Model/input_aggregate_model.jl"
 
     return F
 end
