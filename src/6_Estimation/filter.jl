@@ -11,19 +11,15 @@ Solve model with [`SGU_estim()`](@ref), compute likelihood with [`kalman_filter(
 *if `smoother==True`:*
 - `smoother_output`: returns from [`kalman_filter_smoother()`](@ref)
 """
-function likeli(par, Data, Data_miss, H_sel, XSSaggr, A, B, indexes,indexes_aggr, m_par, n_par, e_set, Copula,distrSS, compressionIndexes, priors, meas_error, meas_error_std; smoother=false)
-    # display("-----------------------")
-    # display("Parameters")
-    # display(par')
-    prior_like::Float64, alarm_prior::Bool = prioreval(Tuple(par), Tuple(priors))
-    # write par to model parameters
-    alarm = false
+function likeli(par, Data, Data_miss, H_sel, XSSaggr, A, B, indexes,indexes_aggr, m_par, n_par, e_set,distrSS, compressionIndexes, priors, meas_error, meas_error_std; smoother=false)
 
+    # check priors, abort if they are violated
+    prior_like::eltype(par), alarm_prior::Bool = prioreval(Tuple(par), Tuple(priors))
+    alarm = false
     if alarm_prior
         log_like = -9.e15
         alarm = true
         State2Control = zeros(n_par.ncontrols, n_par.nstates)
-
         if e_set.debug_print
             println("PRIOR")
         end
@@ -37,15 +33,15 @@ function likeli(par, Data, Data_miss, H_sel, XSSaggr, A, B, indexes,indexes_aggr
         # replace estimated values in m_par by last candidate
         m_par = Flatten.reconstruct(m_par, par[1:m_start])
 
-        # Covariance of structural shocks
-        SCov = zeros(n_par.nstates, n_par.nstates)
+        # covariance of structural shocks
+        SCov = zeros(eltype(par), n_par.nstates, n_par.nstates)
         for i in e_set.shock_names
         	SCov[getfield(indexes, i), getfield(indexes, i)] = (getfield(m_par,Symbol("σ_", i))).^2
         end
 
-        # Covariance of measurement errors, assumption: ME ordered after everything else
+        # covariance of measurement errors, assumption: ME ordered after everything else
         m = size(H_sel)[1]
-        MCov = Diagonal(zeros(m)) # no correlated ME allowed for now
+        MCov = Diagonal(zeros(eltype(par), m)) # no correlated ME allowed for now
         if !isempty(meas_error)
             m_iter = 1
             if e_set.me_treatment != :fixed
@@ -60,42 +56,28 @@ function likeli(par, Data, Data_miss, H_sel, XSSaggr, A, B, indexes,indexes_aggr
                 end
             end
         end
-        # solve this
-        BLAS.set_num_threads(1)
-        State2Control::Array{Float64,2}, LOM::Array{Float64,2}, alarm_sgu::Bool = SGU_estim(XSSaggr, A,B, m_par, n_par, indexes, indexes_aggr, distrSS; estim = true)
 
-        BLAS.set_num_threads(Threads.nthreads())
+        # solve model using candidate parameters
+        # BLAS.set_num_threads(1)
+        State2Control::Array{eltype(par),2}, LOM::Array{eltype(par),2}, alarm_sgu::Bool = SGU_estim(XSSaggr, A,B, m_par, n_par, indexes,
+                                                                                            indexes_aggr, distrSS; estim = true)
 
-        if alarm_sgu
+        # BLAS.set_num_threads(Threads.nthreads())
+        if alarm_sgu # abort if model doesn't solve
             log_like = -9.e15
             alarm = true
-
             if e_set.debug_print
                 println("SGU")
             end
         else
-            MX = [I; State2Control] # States t; Controls t
-            if e_set.fd_flag
-                LOM_D  = copy([LOM zeros(size(LOM)); I zeros(size(LOM))])
-                SCov_D = [SCov zeros(size(SCov)); zeros(size(SCov)) zeros(size(SCov))]
-                MX_D   = copy([MX -MX; MX zeros(size(MX))])
-                H = H_sel * MX_D
-                if smoother == false
-                    log_like = kalman_filter(H, LOM_D, Data, Data_miss, SCov_D, MCov, e_set)
-                    # log_like = kalman_filter_herbst(Data, LOM_D, SCov_D, H, MCov, 0, e_set)
-                else
-                    smoother_output = kalman_filter_smoother(H, LOM_D, Data, .!Data_miss, SCov_D, MCov, e_set)
-                    log_like = smoother_output[1]
-                end
+            MX = [I; State2Control]
+            H = H_sel * MX
+            if smoother == false
+                log_like = kalman_filter(H, LOM, Data, Data_miss, SCov, MCov, e_set)
+                # log_like = kalman_filter_herbst(Data, LOM, SCov, H, MCov, 0, e_set)
             else
-                H = H_sel * MX
-                if smoother == false
-                    log_like = kalman_filter(H, LOM, Data, Data_miss, SCov, MCov, e_set)
-                    # log_like = kalman_filter_herbst(Data, LOM, SCov, H, MCov, 0, e_set)
-                else
-                    smoother_output = kalman_filter_smoother(H, LOM, Data, .!Data_miss, SCov, MCov, e_set)
-                    log_like = smoother_output[1]
-                end
+                smoother_output = kalman_filter_smoother(H, LOM, Data, .!Data_miss, SCov, MCov, e_set)
+                log_like = smoother_output[1]
             end
         end
     end
@@ -125,17 +107,18 @@ of the model.
 # Returns
 - log-likelihood
 """
-function kalman_filter(H::Array{Float64,2}, LOM::Array{Float64,2}, Data::Array{Union{Missing, Float64},2},
-    D_miss::BitArray{2}, SCov::Array{Float64,2}, MCov::Diagonal{Float64, Array{Float64,1}}, e_set::EstimationSettings)
+function kalman_filter(H::Array, LOM::Array, Data::Array{Union{Missing,Float64},2},
+    D_miss::BitArray{2}, SCov::Array, MCov::Diagonal, e_set::EstimationSettings)
 
-    SIG = lyapunov_symm_own(LOM, SCov, 1e-15)
+    # treat non-well-behaved covariance matrix
+    SIG = lyapd(LOM, SCov)
     SIG = nearest_spd(SIG)
-    # display(isposdef(SIG))
 
     t = size(Data)
     n = size(LOM)
     xhat = zeros(Float64, n[1])
     log_lik = 0.0
+
     H_slice = copy(H)
     @views @inbounds for s = 1:t[1]
         miss_temp = findall(D_miss[s, :])
@@ -144,78 +127,81 @@ function kalman_filter(H::Array{Float64,2}, LOM::Array{Float64,2}, Data::Array{U
         copyto!(H_slice, H)
         H_slice[miss_temp, :] .= 0.0
 
-       # compute likelihood contribution
-       resi = Data_slice .- H_slice * xhat
-       SH   = SIG * H_slice'
-       Ω    = H_slice * SH + MCov
+        # compute likelihood contribution
+        resi = Data_slice .- H_slice * xhat
+        SH = SIG * H_slice'
+        Ω = H_slice * SH + MCov
 
-       for i in miss_temp
-           Ω[i, :] .= 0.0
-           Ω[:, i] .= 0.0
-           Ω[i, i] = 1.0
-       end
-       OmegaInv = Ω \ I
+        for i in miss_temp
+            Ω[i, :] .= 0.0
+            Ω[:, i] .= 0.0
+            Ω[i, i] = 1.0
+        end
+        OmegaInv = Ω \ I
 
-       logdet_Ω, sign_logdet = logabsdet(Ω)
-       if sign_logdet < 0
+        logdet_Ω, sign_logdet = logabsdet(Ω)
+        if sign_logdet < 0
             log_lik += -10.e8
             if e_set.debug_print
                 println("KF")
             end
             return log_lik
         else
-            log_lik += - logdet_Ω - resi' * OmegaInv * resi - (t[2] - length(miss_temp)) * log(2.0 * π)
+            log_lik += -logdet_Ω - resi' * OmegaInv * resi - (t[2] - length(miss_temp)) * log(2.0 * π)
         end
-       # update
-       K  = LOM * SH * OmegaInv# Gain
-       xhat = LOM * xhat .+ K * resi
-       Z = LOM .- K * H_slice
-       SIG .= Z * (SIG * Z') .+ K * (MCov * K')  .+ SCov
-       SIG .= 0.5 .* (SIG .+ SIG')
+
+        # update
+        K = LOM * SH * OmegaInv # Gain
+        xhat = LOM * xhat .+ K * resi
+        Z = LOM .- K * H_slice
+        SIG .= Z * (SIG * Z') .+ K * (MCov * K') .+ SCov
+        SIG .= 0.5 .* (SIG .+ SIG')
     end
-    loglik = 0.5 * log_lik #- 0.5 * t[1] * t[2] * log(2.0 * π)
+    loglik = 0.5 * log_lik
 
     return loglik
 end
 
-function kalman_filter(H::Array{Float64,2}, LOM::Array{Float64,2}, Data::Array{Float64,2},
-    D_nomiss::BitArray{2}, SCov::Array{Float64,2}, MCov::Diagonal{Float64, Array{Float64,1}}, e_set::EstimationSettings)
-    # kalman filter variant without missing data
+# kalman filter variant without missing data
+function kalman_filter(H::Array, LOM::Array, Data::Array{Float64,2},
+    D_nomiss::BitArray{2}, SCov::Array, MCov::Diagonal, e_set::EstimationSettings)
 
-    SIG = lyapunov_symm_own(LOM,SCov,1e-15)
+    # treat non-well-behaved covariance matrix
+    SIG = lyapd(LOM, SCov)
     SIG = nearest_spd(SIG)
 
     t = size(Data)
     n = size(LOM)
     xhat = zeros(Float64, n[1])
-    # @time begin
     log_lik = 0.0
-    @views @inbounds for s = 1:t[1]
-       # compute likelihood contribution
-       resi = Data[s, :] .- H * xhat
-       SH   = SIG * H'
-       Ω    = H * SH + MCov
-       OmegaInv = I / Ω
 
-       logdet_Ω, sign_logdet = logabsdet(Ω)
-       if sign_logdet < 0
-            log_lik+=-10.e8
+    @views @inbounds for s = 1:t[1]
+        # compute likelihood contribution
+        resi = Data[s, :] .- H * xhat
+        SH   = SIG * H'
+        Ω    = H * SH + MCov
+        OmegaInv = I / Ω
+
+        logdet_Ω, sign_logdet = logabsdet(Ω)
+        if sign_logdet < 0
+            log_lik += -10.e8
             if e_set.debug_print
                 println("KF")
             end
             return log_lik
         else
-            log_lik += - logdet_Ω - resi' * OmegaInv * resi
+            log_lik += -logdet_Ω - resi' * OmegaInv * resi
         end
-       # update
-       K  = LOM * SH * OmegaInv# Gain
-       xhat = LOM * xhat + K * resi
-       Z = LOM - K * H
-       SIG   = Z*(SIG*Z') + K*(MCov*K')  + SCov
-       SIG = 0.5 * (SIG + SIG')
+
+        # update
+        K = LOM * SH * OmegaInv # Gain
+        xhat = LOM * xhat + K * resi
+        Z = LOM - K * H
+        SIG = Z * (SIG * Z') + K * (MCov * K') + SCov
+        SIG = 0.5 * (SIG + SIG')
     end
     loglik = 0.5 * log_lik - 0.5 * t[1] * t[2] * log(2.0 * π)
-    # end
+
     return loglik
 end
 
@@ -240,15 +226,14 @@ applying the Kalman smoother to the state-space represenation (`H`,`LOM`) of the
     and backward iteration [`Sigma_tgT`]
 - `s`,`m`: ?
 """
-function kalman_filter_smoother(H::Array{Float64,2}, LOM::Array{Float64,2},
-    Data, D_nomiss::BitArray{2}, SCov::Array{Float64,2},
-    MCov::Diagonal{Float64, Array{Float64,1}}, e_set)
+function kalman_filter_smoother(H::Array{Float64,2}, LOM::Array{Float64,2}, Data, D_nomiss::BitArray{2},
+                                SCov::Array{Float64,2}, MCov::Diagonal{Float64, Array{Float64,1}}, e_set)
 
     T, n_obs_vars = size(Data)
     n_states = size(LOM)[1]
 
     Sigma_tgtm1 = zeros(Float64, n_states, n_states, T+1)
-    SIG::Array{Float64,2} = lyapunov_symm_own(LOM,SCov,1e-15)
+    SIG::Array{Float64,2} = lyapd(LOM, SCov)
     Sigma_tgtm1[:, :, 1] = nearest_spd(SIG)
 
     Sigma_tgt = zeros(Float64, n_states, n_states, T)
@@ -285,7 +270,8 @@ function kalman_filter_smoother(H::Array{Float64,2}, LOM::Array{Float64,2},
        xhat_tgt[:, t] = xhat_tgtm1[:, t] + (SH * OmegaInv[D_nomiss[t, :], D_nomiss[t, :],  t]) * resi[D_nomiss[t, :], t]
        Sigma_tgt[:, :, t] = Sigma_tgtm1[:, :, t] - SH * (OmegaInv[D_nomiss[t, :], D_nomiss[t, :], t] * transpose(SH))
        xhat_tgtm1[:, t + 1] = LOM * xhat_tgtm1[:, t] + K[:, D_nomiss[t, :], t] * resi[D_nomiss[t, :], t]
-       Sigma_tgtm1_temp =  L[:, :, t] * (Sigma_tgtm1[:, :, t] * L[:, :, t]') + K[:, D_nomiss[t, :], t] * (MCov[D_nomiss[t, :], D_nomiss[t, :]] * K[:, D_nomiss[t, :], t]') + SCov
+       Sigma_tgtm1_temp =  L[:, :, t] * (Sigma_tgtm1[:, :, t] * L[:, :, t]') + K[:, D_nomiss[t, :], t] *
+                            (MCov[D_nomiss[t, :], D_nomiss[t, :]] * K[:, D_nomiss[t, :], t]') + SCov
        Sigma_tgtm1[:, :, t + 1] = 0.5 * (Sigma_tgtm1_temp + transpose(Sigma_tgtm1_temp))
 
     end
@@ -320,7 +306,7 @@ function kalman_filter_herbst(Data, LOM, SCov, H, MCov, t0, e_set)
     ns = size(LOM, 1)
     xhat = zeros(ns, 1)
 
-    P::Array{Float64,2} = lyapunov_symm_own(LOM, SCov, 1e-15)
+    P::Array{Float64,2} = lyapd(LOM, SCov)
 
     F = H * (P * H') + MCov
     F = 0.5 * (F + F')
@@ -378,65 +364,53 @@ function kalman_filter_herbst(Data, LOM, SCov, H, MCov, t0, e_set)
     return log_lik
 end
 
-function lyapunov_symm_own(a::Array{Float64,2}, b::Array{Float64,2}, lyapunov_complex_threshold::Float64)
-    # Adapted from Dynare. Copyright (C) 2006-2017 Dynare Team
-    T, Z = schur(a)
-    B = (Z' * b) * Z
-    n = size(T, 1)
-    x = zeros(n, n)
-    i = copy(n)
+@doc raw"""
+    nearest_spd(A)
 
-    @views @inbounds while i >= 2
-        if abs(T[i, i-1]) < lyapunov_complex_threshold
-            if i .== n
-                c = zeros(n, 1)
-            else
-                c = T[1:i, :] * (x[:, i+1:end] * T[i,i+1:end]) +
-                    T[i, i] .* (T[1:i, i+1:end] * x[i+1:end,i])
-            end
-            q           = I - T[1:i, 1:i] .* T[i, i]
-            x[1:i, i]   = q \ (B[1:i, i] .+ c)
-            x[i, 1:i-1] = x[1:i-1, i]'
-            i -= 1
+Return the nearest (in Frobenius norm) Symmetric Positive Definite matrix to `A`.
+
+Based on [answer in MATLAB Central forum](https://de.mathworks.com/matlabcentral/answers/320134-make-sample-covariance-correlation-matrix-positive-definite).
+From Higham: "The nearest symmetric positive semidefinite matrix in the
+Frobenius norm to an arbitrary real matrix A is shown to be (B + H)/2,
+where H is the symmetric polar factor of B=(A + A')/2."
+
+# Arguments
+`A`: square matrix
+
+# Returns
+`Ahat`: nearest SPD matrix to `A`
+"""
+function nearest_spd(A)
+
+    # symmetrize A into B
+    B = 0.5 .* (A .+ A')
+    FU, FS, FVt = LinearAlgebra.LAPACK.gesvd!('N', 'S', copy(B))
+    H = FVt' * Diagonal(FS) * FVt
+
+    # get Ahat in the above formula
+    Ahat = 0.5 .* (B .+ H)
+
+    # ensure symmetry
+    Ahat .= 0.5 .* (Ahat .+ Ahat')
+    
+    # test that Ahat is in fact PD. if it is not so, then tweak it just a bit.
+    p = false
+    k = 0
+    count = 1
+    while p == false && count<100
+        R = cholesky(Ahat; check=false)
+        k += 1
+        count = count + 1
+        if ~issuccess(R)
+            # Ahat failed the chol test. It must have been just a hair off,
+            # due to floating point trash, so it is simplest now just to
+            # tweak by adding a tiny multiple of an identity matrix.
+            mineig = eigmin(Ahat)
+            Ahat .+= (-mineig .* k.^2 .+ eps(mineig)) .* Diagonal(ones(size(Ahat,1)))
         else
-            if i .== n
-                c   = zeros(n, 1)
-                c1  = zeros(n, 1)
-            else
-                c   = T[1:i, :] * (x[:, i+1:end] * T[i, i+1:end]) +
-                        T[i, i] .* (T[1:i, i+1:end] * x[i+1:end, i]) +
-                        T[i, i-1] .* (T[1:i, i+1:end] * x[i+1:end, i-1])
-                c1  = T[1:i, :] * (x[:, i+1:end] * T[i-1, i+1:end]) +
-                        T[i-1, i-1] .* (T[1:i, i+1:end] * x[i+1:end, i-1]) +
-                        T[i-1, i] .* (T[1:i, i+1:end] * x[i+1:end, i])
-            end
-            q = Matrix{Float64}(undef, 2*i, 2*i)
-            for i2 = 1:i, i1 = 1:i
-                if i1 == i2
-                    q[i1, i2]     = 1.0 .- T[i, i] .* T[i1, i2]
-                    q[i1, i+i2]   = - T[i, i-1] .* T[i1, i2]
-                    q[i+i1, i2]   = - T[i-1, i] .* T[i1, i2]
-                    q[i+i1, i+i2] = 1.0 .- T[i-1, i-1] .* T[i1, i2]
-                else
-                    q[i1, i2]     = - T[i, i] .* T[i1, i2]
-                    q[i1, i+i2]   = - T[i, i-1] .* T[i1, i2]
-                    q[i+i1, i2]   = - T[i-1, i] .* T[i1, i2]
-                    q[i+i1, i+i2] = - T[i-1, i-1] .* T[i1, i2]
-                end
-            end
-            z =  q \ [ B[1:i, i] .+ c; B[1:i, i-1] .+ c1 ]
-            x[1:i, i]       .= z[1:i]
-            x[1:i, i-1]     .= z[i+1:end]
-            x[i, 1:i-1]     .= x[1:i-1, i]
-            x[i-1, 1:i-2]   .= x[1:i-2, i-1]
-            i -= 2
+            p = true
         end
     end
-    if i .== 1
-        c = dot(T[1, :], x[:, 2:end] * T[1, 2:end]) .+ T[1, 1] .* dot(T[1, 2:end], x[2:end, 1])
-        x[1, 1] = (B[1, 1] .+ c) ./ (1 .- T[1, 1] .* T[1, 1])
-    end
-    x = Z * x * Z'
 
-    return x
+    return Ahat
 end

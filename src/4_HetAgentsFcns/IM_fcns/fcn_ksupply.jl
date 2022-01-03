@@ -58,11 +58,11 @@ function Ksupply(RB_guess::Float64, R_guess::Float64, n_par::NumericalParameters
             EGM_policyupdate(EVm, EVk, q, m_par.π, RB_guess, 1.0, inc, n_par, m_par, false)
 
         # marginal value update step
-        Vk_new, Vm_new  = updateV(EVk, c_a_star, c_n_star, m_n_star, R_guess - 1.0, q, m_par, n_par, n_par.Π)
+        Vk_new, Vm_new  = updateV(EVk, c_a_star, c_n_star, m_n_star, R_guess - 1.0, q, m_par, n_par)
 
         # Calculate distance in updates
-        dist1           = maximum(abs, invmutil(Vk_new, m_par.ξ) .- invmutil(Vk, m_par.ξ))
-        dist2           = maximum(abs, invmutil(Vm_new, m_par.ξ) .- invmutil(Vm, m_par.ξ))
+        dist1           = maximum(abs, invmutil(Vk_new) .- invmutil(Vk))
+        dist2           = maximum(abs, invmutil(Vm_new) .- invmutil(Vm))
         dist            = max(dist1, dist2) # distance of old and new policy
 
         # update policy guess/marginal values of liquid/illiquid assets
@@ -81,16 +81,10 @@ function Ksupply(RB_guess::Float64, R_guess::Float64, n_par::NumericalParameters
     TransitionMat_n                 = sparse(S_n, T_n, W_n, n_par.nm * n_par.nk * n_par.ny, n_par.nm * n_par.nk * n_par.ny)
     TransitionMat                   = m_par.λ .* TransitionMat_a .+ (1.0 .- m_par.λ) .* TransitionMat_n
 
-    if n_par.use_Krylof
-        # Calculate left-hand unit eigenvector (uses Krylov package)
-        aux = real.(eigsolve(TransitionMat', 1)[2][1])
-        distr = reshape((aux[:]) ./ sum((aux[:])),  (n_par.nm, n_par.nk, n_par.ny))
-    
-    else
-        # Direct Transition
-        distr = n_par.dist_guess #ones(n_par.nm, n_par.nk, n_par.ny)/(n_par.nm*n_par.nk*n_par.ny)
-        distr, dist, count = MultipleDirectTransition(m_a_star, m_n_star, k_a_star, distr, m_par.λ, n_par.Π, n_par)
-    end
+    # Calculate left-hand unit eigenvector
+    aux = real.(eigsolve(TransitionMat', 1)[2][1])
+    distr = reshape((aux[:]) ./ sum((aux[:])),  (n_par.nm, n_par.nk, n_par.ny))
+
     #-----------------------------------------------------------------------------
     # Calculate capital stock
     #-----------------------------------------------------------------------------

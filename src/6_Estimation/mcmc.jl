@@ -1,5 +1,5 @@
 @doc raw"""
-    rwmh(xhat,Σ,n_par,Data,D_miss,H_sel,XSSaggr,A,B,LOMstate_guess,State2Control_guess,indexes,indexes_aggr,m_par,e_set,Copula,distrSS,compressionIndexes,priors,meas_error,meas_error_std)
+    rwmh(xhat, Σ, n_par, Data, D_miss, H_sel, XSSaggr, A, B, indexes, indexes_aggr, m_par, e_set, Copula, distrSS, compressionIndexes, priors,meas_error, meas_error_std)
 
 Sample the posterior of the parameter vector using the Random-Walk Metropolis Hastings algorithm.
 
@@ -9,26 +9,24 @@ Sample the posterior of the parameter vector using the Random-Walk Metropolis Ha
 - `accept_rate`: acceptance rate
 """
 function rwmh(xhat::Vector{Float64}, Σ::Symmetric{Float64,Array{Float64,2}}, n_par::NumericalParameters,
-    Data::AbstractArray, D_miss::BitArray{2}, H_sel, XSSaggr,A, B,
-    LOMstate_guess, State2Control_guess, indexes, indexes_aggr, m_par, e_set, Copula, distrSS,
+    Data::AbstractArray, D_miss::BitArray{2}, H_sel, XSSaggr, A, B, indexes, indexes_aggr, m_par, e_set, distrSS,
     compressionIndexes, priors, meas_error, meas_error_std)
 
     NormDist = MvNormal(zeros(length(xhat)), Σ)
-    # Bayesian Estimation
     accept = 0
 	accept_rate = 0.0
     draws = Matrix{Float64}(undef, e_set.ndraws + e_set.burnin, length(xhat))
     posterior = Vector{Float64}(undef, e_set.ndraws + e_set.burnin)
     draws[1, :] = xhat
     old_posterior, alarm = likeli(xhat, Data, D_miss, H_sel, XSSaggr, A, B, indexes, indexes_aggr,
-                        m_par, n_par, e_set, Copula, distrSS, compressionIndexes, priors,
+                        m_par, n_par, e_set, distrSS, compressionIndexes, priors,
                         meas_error, meas_error_std)[3:4]
     posterior[1] = copy(old_posterior)
     proposal_draws = e_set.mhscale .* rand(NormDist, e_set.ndraws + e_set.burnin)
     for i = 2:e_set.ndraws + e_set.burnin
         xhatstar = draws[i-1, :] .+ proposal_draws[:, i]
         new_posterior, alarm, State2Control = likeli(xhatstar, Data, D_miss, H_sel, XSSaggr, A, B,
-        indexes,indexes_aggr, m_par, n_par, e_set, Copula, distrSS,
+        indexes,indexes_aggr, m_par, n_par, e_set, distrSS,
         compressionIndexes, priors, meas_error, meas_error_std)[3:5]
 
         accprob = min(exp(new_posterior - old_posterior), 1.0)
@@ -36,7 +34,7 @@ function rwmh(xhat::Vector{Float64}, Σ::Symmetric{Float64,Array{Float64,2}}, n_
             draws[i, :] = xhatstar
             posterior[i] = copy(old_posterior)
             old_posterior = new_posterior
-            @set! n_par.State2Control_save = State2Control
+            # @set! n_par.State2Control_save = State2Control
             accept += 1
         else
             draws[i, :] = draws[i-1, :]
@@ -59,13 +57,12 @@ function rwmh(xhat::Vector{Float64}, Σ::Symmetric{Float64,Array{Float64,2}}, n_
 	return draws, posterior, accept_rate
 end
 
-
+# draw overdispersed initial values for multi-chain RWMH
 function multi_chain_init(xhat::Vector{Float64}, Σ::Symmetric{Float64,Array{Float64,2}}, n_par::NumericalParameters,
     Data::AbstractArray, D_miss::BitArray{2}, H_sel, XSSaggr,A,B, indexes, indexes_aggr,
-	m_par, e_set, Copula, distrSS, compressionIndexes, priors, meas_error, meas_error_std)
+	m_par, e_set, distrSS, compressionIndexes, priors, meas_error, meas_error_std)
 
-	# draw overdispersed initial values
-	init_scale = 2 * e_set.mhscale
+	init_scale = 2 * e_set.mhscale # overdispersed initial values
 	NormDist = MvNormal(zeros(length(xhat)), Σ)
 	init_draw = Vector{Float64}(undef, length(xhat))
 	init_success = false
@@ -73,9 +70,9 @@ function multi_chain_init(xhat::Vector{Float64}, Σ::Symmetric{Float64,Array{Flo
 	while init_success == false && init_iter <= 100
 		init_draw .= init_scale^2.0 .* rand(NormDist) .+ xhat
 
-		 log_post, alarm = likeli(init_draw, Data, D_miss, H_sel, XSSaggr, A, B, indexes, indexes_aggr,
-                             m_par, n_par, e_set, Copula, distrSS, compressionIndexes, priors,
-                             meas_error, meas_error_std)[3:4]
+		alarm = likeli(init_draw, Data, D_miss, H_sel, XSSaggr, A, B, indexes, indexes_aggr,
+                             m_par, n_par, e_set, distrSS, compressionIndexes, priors,
+                             meas_error, meas_error_std)[4]
 		if alarm == false
 			init_success = true
 		else
@@ -114,52 +111,4 @@ function marginal_density(draws, posterior)
     marg_likeli = mean(marg_likeli_save)
 
 	return marg_likeli
-end
-
-@doc raw"""
-    nearest_spd(A)
-
-Return the nearest (in Frobenius norm) Symmetric Positive Definite matrix to `A`.
-
-Based on [answer in MATLAB Central forum](https://de.mathworks.com/matlabcentral/answers/320134-make-sample-covariance-correlation-matrix-positive-definite).
-From Higham: "The nearest symmetric positive semidefinite matrix in the
-Frobenius norm to an arbitrary real matrix A is shown to be (B + H)/2,
-where H is the symmetric polar factor of B=(A + A')/2."
-
-# Arguments
-`A`: square matrix
-
-# Returns
-`Ahat`: nearest SPD matrix to `A`
-"""
-function nearest_spd(A)
-# adapted from John D'Errico (2020). nearestSPD (https://www.mathworks.com/matlabcentral/fileexchange/42885-nearestspd), MATLAB Central File Exchange.
-# symmetrize A into B
-B = 0.5 .* (A .+ A')
-FU, FS, FVt = LinearAlgebra.LAPACK.gesvd!('N', 'S', copy(B))
-H = FVt' * Diagonal(FS) * FVt
-
-# get Ahat in the above formula
-Ahat = 0.5 .* (B .+ H)
- # ensure symmetry
-Ahat .= 0.5 .* (Ahat .+ Ahat')
-# test that Ahat is in fact PD. if it is not so, then tweak it just a bit.
-p = false
-k = 0
-count = 1
-while p == false && count<100
-  R = cholesky(Ahat; check=false)
-  k += 1
-  count = count + 1
-  if ~issuccess(R)
-    # Ahat failed the chol test. It must have been just a hair off,
-    # due to floating point trash, so it is simplest now just to
-    # tweak by adding a tiny multiple of an identity matrix.
-    mineig = eigmin(Ahat)
-    Ahat .+= (-mineig .* k.^2 .+ eps(mineig)) .* Diagonal(ones(size(Ahat,1)))
-  else
-    p = true
-  end
-end
-return Ahat
 end

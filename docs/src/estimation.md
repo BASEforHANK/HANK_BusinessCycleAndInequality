@@ -1,6 +1,6 @@
 # Estimation of parameters
 !!! note
-    Most of the code of this section is in the folder `Estimation`
+    Most of the code of this section is in the folder `6_Estimation`
 
 ## Settings
 ```@docs

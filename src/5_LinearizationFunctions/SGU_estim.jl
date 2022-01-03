@@ -28,7 +28,6 @@ function SGU_estim(XSSaggr::Array, A::Array, B::Array,
     ############################################################################
     # Calculate dericatives of non-lineear difference equation
     ############################################################################
-
     length_X0   = length(XSSaggr) 
     BA          = ForwardDiff.jacobian(x-> Fsys_agg(x[1:length_X0],x[length_X0+1:end],XSSaggr,distrSS,m_par,n_par,indexes_aggr),zeros(2*length_X0))
     Aa          = BA[:,length_X0+1:end]
@@ -51,6 +50,7 @@ function SGU_estim(XSSaggr::Array, A::Array, B::Array,
     ############################################################################
     # Solve the linearized model: Policy Functions and LOMs
     ############################################################################
-    gx, hx, alarm_sgu, nk = SolveDiffEq(A,B, n_par, estim)
+    gx, hx, alarm_sgu, nk = SolveDiffEq(A, B, n_par, estim)
+
     return gx, hx, alarm_sgu, nk, A, B
 end

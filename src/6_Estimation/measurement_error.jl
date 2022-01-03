@@ -14,13 +14,16 @@ Build measurement error.
 - `meas_error_std`: standard deviations of observables with measurement error
 """
 function measurement_error(Data, observed_vars, e_set)
+
     if !isempty(e_set.meas_error_input)
+
         # find correct positions for measurement error
         meas_error_index = Vector{Int}(undef,length(e_set.meas_error_input))
         for i in eachindex(e_set.meas_error_input)
             meas_error_index[i] = findall(x->x==e_set.meas_error_input[i], observed_vars)[1]
         end
         meas_error = OrderedDict(zip(e_set.meas_error_input, meas_error_index))
+        
         # create measurement error according to selected treatment
         if e_set.me_treatment == :unbounded
             # inverse gamma prior

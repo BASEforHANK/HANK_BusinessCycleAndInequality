@@ -41,14 +41,14 @@ kmax        = n_par.grid_k[end]
 ## EGM Step 1: Find optimal liquid asset holdings in the constrained case ##
 ############################################################################
 EMU         = EVm .* β
-c_star_n    = invmutil(EMU,m_par.ξ) # 6% of time with rolled out power function
+c_star_n    = invmutil(EMU) # 6% of time with rolled out power function
 
 # Calculate assets consistent with choices being [m']
 # Calculate initial money position from the budget constraint
 # that leads to the optimal consumption choice
 m_star_n    = (c_star_n .+ n_par.mesh_m .- inc_lab .- inc_rent)
 # Apply correct interest rate
-m_star_n   .= m_star_n./((RBminus .+ borrwedge.*(m_star_n.<0))./πminus)  # apply borrowing rate
+m_star_n   .= m_star_n ./ (RBminus ./ πminus .+ borrwedge.*(m_star_n.<0))  # apply borrowing rate
 
 # Next step: Interpolate w_guess and c_guess from new k-grids
 # using c[s,h,m"], m(s,h,m")
@@ -130,7 +130,7 @@ for j in eachindex(m_a_aux)
 end
 
 
-c_a_aux         = invmutil(EMU_star, m_par.ξ)
+c_a_aux         = invmutil(EMU_star)
 
 # Resources that lead to capital choice
 # k'= c + m*(k") + k" - w*h*N

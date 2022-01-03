@@ -3,23 +3,23 @@
 # cd("HANK_BusinessCycleAndInequality/src")
 
 # pre-process user inputs for model setup
-include("2_NumericalBasics/PreprocessInputs.jl")
+include("3_NumericalBasics/PreprocessInputs.jl")
 
 push!(LOAD_PATH, pwd())
 using HANKEstim
 
-#initialize model parameters˝øø
+#initialize model parameters˝
 m_par = ModelParameters()
 # load estimated parameters from HANKX+ estimation and update model parameters
-HANKEstim.@load "7_Saves/HANKXplus_postmean.jld2" par_final
-m_par = HANKEstim.Flatten.reconstruct(m_par, par_final[1:length(par_final) - length(HANKEstim.e_set.meas_error_input)])
+HANKEstim.@load "7_Saves/parameter_example.jld2" par_final
+m_par = HANKEstim.Flatten.reconstruct(m_par, par_final[1:length(par_final)-length(HANKEstim.e_set.meas_error_input)])
 
 # Calculate Steady State
-sr    = compute_steadystate(m_par)
+sr = compute_steadystate(m_par)
 HANKEstim.@save "7_Saves/steadystate.jld2" sr
 # HANKEstim.@load "7_Saves/steadystate.jld2" sr
 
-lr    = linearize_full_model(sr, m_par)
+lr = linearize_full_model(sr, m_par)
 HANKEstim.@save "7_Saves/linearresults.jld2" lr
 # HANKEstim.@load "7_Saves/linearresults.jld2"
 
@@ -49,5 +49,5 @@ if HANKEstim.e_set.estimate_model == true
     er = find_mode(sr, lr, m_par)
     # loading the mode only works with a full mode save file not our provided file
     # er = load_mode(sr; file = HANKEstim.e_set.save_mode_file)
-    # montecarlo(sr, lr, er, m_par)
+    montecarlo(sr, lr, er, m_par)
 end

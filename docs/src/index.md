@@ -3,20 +3,24 @@
 This manual documents the Julia module **HANKEstim**, that implements the solution and Bayesian likelihood
 estimation of a heterogeneous-agent New-Keynesian (HANK) model. It accompanies the paper
 [Shocks, Frictions, and Inequality in US Business Cycles](https://www.benjaminborn.de/publication/bbl_inequality_2020/).
+
+!!! note
+    The paper is currently under revision and the updated toolbox does not replicate the results in the linked version of the paper.
+
 ## First steps
-The module runs with Julia 1.6.1. We recommend to use [Julia for VSCode IDE](https://www.julia-vscode.org) as a front-end to Julia. To get started with the toolbox, simply download or clone the folder, e.g. via `git clone`, `cd` to the project directory and call
+The module runs with Julia 1.7.1. We recommend to use [Julia for VSCode IDE](https://www.julia-vscode.org) as a front-end to Julia. To get started with the toolbox, simply download or clone the folder, e.g. via `git clone`, `cd` to the project directory and call
 ```julia-repl
-(v1.6) pkg> activate .
+(v1.7) pkg> activate .
 
 (HANK_BusinessCycleAndInequality) pkg> instantiate
 ```
-This will install all needed packages in the same state as they were used for the paper. For more on Julia environments, see [`Pkg.jl`](https://julialang.github.io/Pkg.jl/v1/environments/#Using-someone-else's-project).
+This will install all needed packages. For more on Julia environments, see [`Pkg.jl`](https://julialang.github.io/Pkg.jl/v1/environments/#Using-someone-else's-project).
 
 !!! warning
     Before you activate the environment, make sure that you are in the main directory, in which the `Manifest.toml` and `Project.toml` files are located. In case you accidentally activated the environment in a subfolder, empty `.toml` files will be created that you need to delete before proceeding in the correct folder.
 
 
-For an introduction, it is easiest to use the Julia script `script.jl` in the `src` folder. Make sure that the folder is the present working directory and that the bottom bar in VSCode shows `Julia env: HANK_BusinessCycleAndInequality`.[^1] Then write
+For an introduction, it is easiest to use the Julia script `script.jl` in the `src` folder. Make sure that the folder is the present working directory and that the bottom bar in VSCode shows `Julia env: HANK_BusinessCycleAndInequality`.[^1] At the top of the script file, we pre-process some user input regarding the aggregate model and the steady state (see below) and write them them into the respective functions in the folder `5_LinearizationFunctions\generated_fcns`. This has to be done before the HANKEstim module, defined in `HANKEstim.jl`, is loaded via
 ```
 push!(LOAD_PATH, pwd())
 using HANKEstim
@@ -27,16 +31,15 @@ using HANKEstim
 #    Instead of pushing the current directory to `LOAD_PATH` at runtime, one can also move the folder `HANKEstim` to
 #    the place where packages are stored in the local Julia environment.
 ```
-
-This loads the HANKEstim module that is defined in `HANKEstim.jl`. `HANKEstim.jl` is the key module file as it loads in the code base, sets up structures, and exports a number of functions and macros.
+`HANKEstim.jl` is the key module file as it loads in the code base, sets up structures, and exports a number of functions and macros.
 
 The provided `script.jl` then shows how a typical estimation proceeds in three main steps. First, we solve the steady state of the model, and reduce the dimensionality of the state space [^BL]. Secondly, we compute the linearized dynamics of the model around the steady state. Thirdly, we construct the likelihood of the model parameters given data, and use Bayesian methods to estimate them. More details on the three steps are provided in the menu on the left. `script.jl` also provides an example on how to plot some impulse response functions from the model.
 
 ### Setting up your model
 
-To define the aggregate part of the model, include the aggregate model block in `3_Model\input_aggregate_model.jl`. The model variables are divided into *states* (distribution, productivity, ...) and
+To define the aggregate part of the model, include the aggregate model block in `1_Model\input_aggregate_model.jl`. The model variables are divided into *states* (distribution, productivity, ...) and
 *controls* (consumption policy or marginal utilities, prices, aggregate capital stock, ...). The aggregate variables (i.e. excluding the distribution and marginal utilities) are defined
- in `3_Model\include_aggregate_names` and their steady states in `3_Model\input_aggregate_steady_state`. Include model parameters in `struct ModelParameters` in `3_Model\Parameters.jl`.
+ in `1_Model\include_aggregate_names` and their steady states in `1_Model\input_aggregate_steady_state`. Include model parameters in `struct ModelParameters` in `1_Model\Parameters.jl`.
 
 The file `Parameters.jl` contains three structures to provide model parameters, numerical parameters, and estimation settings. In additon, it contains two macros that automatically create structures that contain the model variables.
 
@@ -56,11 +59,11 @@ compressed state vectors.
 !!! tip
     `sr` may be saved to the local file system by calling
     ```
-    HANKEstim.@save "Saves/steadystate.jld2" sr
+    HANKEstim.@save "7_Saves/steadystate.jld2" sr
     ```
     and can be loaded for a future session with
     ```
-    HANKEstim.@load "Saves/steadystate.jld2" sr
+    HANKEstim.@load "7_Saves/steadystate.jld2" sr
     ```
 
 ### Linearize full model
@@ -88,7 +91,7 @@ observing the data given the model, and saves the results in `er`, an instance o
 `Optim` for optimization. Settings for the estimation can adjusted in the `struct` [`EstimationSettings`](@ref).
 
 !!! warning
-    By default, the flag `estimate_model` in the `struct` [`EstimationSettings`](@ref) is set to `false`. Depending on the computing power available, finding the mode of the likelihood can take several hours to run through. The mode finder might also seem frozen after finishing the optimization but the computation of the Hessian for the large model is involved and can take a long time for the large model. For instructional purposes, we therefore set `e_set.compute_hessian = false` by default and set the Hessian to the identity matrix. For a proper estimation, this has to be set to true. We also save an intermediate step before computing the Hessian in case you are only interested in the mode itself.
+    By default, the flag `estimate_model` in the `struct` [`EstimationSettings`](@ref) is set to `false`. Depending on the computing power available, finding the mode of the likelihood can take several hours to run through. The mode finder might also seem frozen after finishing the optimization but the computation of the Hessian for the large model is involved and can take a long time for the large model. For instructional purposes, we therefore set `e_set.compute_hessian = false` by default and load the Hessian from a save file. For a proper estimation, this has to be set to true. We also save an intermediate step before computing the Hessian in case you are only interested in the mode itself.
 
 Lastly,
 ```

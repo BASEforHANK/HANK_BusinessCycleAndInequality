@@ -1,6 +1,6 @@
 # Computation of the steady state and dimensionality reduction
 !!! note
-    Most of the code of this section is in the folder `HetAgentsFcns`.
+    Most of the code of this section is in the folder `4_HetAgentsFcns`.
 
 The model features uninsured income shocks ``y`` (by assumption, all workers supply the same
 efficiency units of labor [^BBL], so idiosyncratic productivity shocks translate
@@ -20,16 +20,13 @@ The main functions are [`find_steadystate()`](@ref) and [`prepare_linearization(
 ```@docs
 find_steadystate
 ```
-First, we instantiate the parameter `struct`s `ModelParameters` and `NumericalParameters` 
-as `m_par` and `n_par` (see [Parameters](@ref)).
+The function takes the parameter `struct` `ModelParameters` as input `m_par` (see [Parameters](@ref)).
 
 To find the stationary equilibrium, we proceed in roughly the following steps:
 
-1. set number of income states [`ny`] and use the [`Tauchen()`](@ref) method to 
-    obtain a grid and a transition matrix of income, given the autocorrelation
-    of the income process [`m_par.ρ_h`]. Then, include entrepreneurial state.
-2. instantiate the parameter `struct` `NumericalParameters` as `n_par` (see [Parameters](@ref))
-3. find equilibrium capital stock (by finding a root of [`Kdiff()`](@ref)), where
+1. instantiate the parameter `struct` `NumericalParameters` as `n_par` (see [Parameters](@ref)).
+   Within the struct, we set the number of income states [`ny`] and use the [`Tauchen()`](@ref) method to obtain a grid and a transition matrix of income, given the autocorrelation of the income process [`m_par.ρ_h`]. Then, include entrepreneurial state.
+2. find equilibrium capital stock (by finding a root of [`Kdiff()`](@ref)), where
     the supply of capital by households is calculated in [`Ksupply()`](@ref),
     which uses the Endogenous Grid Method (see [`EGM_policyupdate`](@ref))
     to iteratively obtain optimal policies and marginal value functions
@@ -62,11 +59,6 @@ Additionally, the deviations of the marginal distributions are saved with one en
 the grid size, since the marginals are restricted to sum up to 1.
 We manage this by creating the `struct` `indexes` (using [`@make_fn`](@ref)),
 that has two fields for each variable: steady state value and deviation.
-
-!!! note
-    By convention, the last control in `control_names` is the variable `profits` (and
-    controls are ordered after states). Thereby, `indexes.profits` gives the
-    length that a deviation-vector (like `X` and `XPrime`) must have.
 
 We also construct the vector `XSSaggr` and the `struct` `indexes_aggr`,
 which are similar to the above but only store (and manage) aggregate variables.
