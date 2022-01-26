@@ -17,7 +17,7 @@ julia> priors = collect(metaflatten(m_par, prior))
 ```
 """
 @label @latex_label @prior @flattenable @with_kw struct ModelParameters{T}
-	# variable = value  | ascii name 	| LaTex name 	| Prior distribution						| estimated ? # description
+	# variable = value  | ascii name 	| LaTex name 	| Prior distribution | estimated? # description
 	
 	# Household preference parameters
 	ξ::T = 4.0    		| "xi" 			| L"\xi" 		|  _ 										| false # risk aversion
@@ -38,9 +38,9 @@ julia> priors = collect(metaflatten(m_par, prior))
 	δ_s::T = 0.1 		| "delta_s" 	| L"\delta_s" 	| Gamma(gamma_pars(5.0, 2.0^2)...) 			| true  # depreciation rate increase (flex utilization)
 	ϕ::T = 0.5   		| "phi" 		| L"\phi" 		| Gamma(gamma_pars(4.0, 2.0^2)...)    		| true  # Capital adjustment costs
 	μ::T = 1.1  		| "mu" 			| L"\mu" 		|  _  										| false # Price markup
-	κ::T = 1/11  		| "kappa" 		| L"\kappa" 	| Gamma(gamma_pars(0.1, 0.025^2)...) 		| true  # Price adjustment costs (in terms of Calvo probs.)
+	κ::T = 1/11  		| "kappa" 		| L"\kappa" 	| Gamma(gamma_pars(0.1, 0.01^2)...) 		| true  # Price adjustment costs (in terms of Calvo probs.)
 	μw::T = 1.1 		| "mu_w" 		| L"\mu_w" 		|  _  										| false # wage markup
-	κw::T = 1/11 		| "kappa_w" 	| L"\kappa_w" 	| Gamma(gamma_pars(0.1, 0.025^2)...) 		| true  # Wage  adjustment costs (in terms of Calvo probs.)
+	κw::T = 1/11 		| "kappa_w" 	| L"\kappa_w" 	| Gamma(gamma_pars(0.1, 0.01^2)...) 		| true  # Wage  adjustment costs (in terms of Calvo probs.)
 
 	# Further steady-state parameters
 	ψ::T  = 0.1     	| "psi" 		| L"\psi" 		|  _  										| false # steady-state bond to capital ratio
@@ -71,8 +71,8 @@ julia> priors = collect(metaflatten(m_par, prior))
 
 	# income risk
 	ρ_s::T = 0.84 		| "rho_sigma" 	| L"\rho_s" 	| Beta(beta_pars(0.7, 0.2^2)...)       		| true  # Persistence of idiosyncratic income risk
-	σ_Sshock::T = 1.0  	| "sigma_Sshock"| L"\sigma_s" 	| Gamma(gamma_pars(0.65, 0.3^2)...) 		| true  # std of idiosyncratic income risk
-	Σ_n::T = 0.0  		| "Sigma_n" 	| L"\Sigma_N" 	| Normal(0.0, 100.0) 						| true  # reaction of risk to employment
+	σ_Sshock::T = 0.0  	| "sigma_Sshock"| L"\sigma_s" 	| Gamma(gamma_pars(0.65, 0.3^2)...) 		| true  # std of idiosyncratic income risk
+	Σ_n::T = 0.0  		| "Sigma_n" 	| L"\Sigma_N" 	| Normal(0.0, 100.0) 						| false  # reaction of risk to employment
 
 	# monetary policy
 	ρ_R::T = 0.9 		| "rho_R" 		| L"\rho_R" 	| Beta(beta_pars(0.5, 0.2^2)...)          	| true  # Pers. in Taylor rule
@@ -92,7 +92,7 @@ julia> priors = collect(metaflatten(m_par, prior))
 	γ_Yτ::T = 3.0 		| "gamma_Ytau" 	| L"\gamma_Y_\tau"| Normal(0.0, 1.0) 						| true  # reaction of tax level to output
 
 	ρ_P::T = 0.5  		| "rho_P" 		| L"\rho_P" 	| Beta(beta_pars(0.5, 0.2^2)...)        	| true  # Pers. in tax progr. rule
-	σ_Tprogshock::T = 0.01|"sigma_Pshock"| L"\sigma_P" 	| InverseGamma(ig_pars(0.001, 0.02^2)...) 	| true  # Std tax progr.
+	σ_Tprogshock::T = 0.0|"sigma_Pshock"| L"\sigma_P" 	| InverseGamma(ig_pars(0.001, 0.02^2)...) 	| true  # Std tax progr.
 	γ_BP::T = 0.0 		| "gamma_BP" 	| L"\gamma_B^P" | Normal(0.0, 1.0) 							| false # reaction of tax progr. to debt
 	γ_YP::T = 0.0 		| "gamma_YP" 	| L"\gamma_Y^P" | Normal(0.0, 1.0) 							| false # reaction of tax progr. to output
 
@@ -117,23 +117,26 @@ julia> n_par = NumericalParameters(mmin = -6.6, mmax = 1000)
 @with_kw struct NumericalParameters
 	# Numerical Parameters to be set in advance
 	m_par::ModelParameters = ModelParameters()
-	ny::Int             = 12  	# ngrid income (4 is the coarse grid used initially in finding the StE)
-	nk::Int            	= 60    # ngrid illiquid assets (capital) (10 is the coarse grid used initially in finding the StE)
-	nm::Int            	= 60    # ngrid liquid assets (bonds) (10 is the coarse grid used initially in finding the StE)
-	ny_copula::Int    	= ceil(Int, ny / 2)    # ngrid income for refinement
-	nk_copula::Int      = ceil(Int, nk / 6)    # ngrid illiquid assets (capital)
-	nm_copula::Int      = ceil(Int, nm / 6)    # ngrid liquid assets (bonds)
-	kmin::Float64      	= 0.0    # gridmin capital
-	kmax::Float64      	= 2250.0 # gridmax capital
-	mmin::Float64      	= -6.6   # gridmin bonds
-	mmax::Float64      	= 1750.0 # gridmax bonds
-	ϵ::Float64         	= 1.0e-11 						# precision 
+	ny::Int             = 11#22  	    # ngrid income (4 is the coarse grid used initially in finding the StE)
+	nk::Int            	= 50#80        # ngrid illiquid assets (capital) (10 is the coarse grid used initially in finding the StE)
+	nm::Int            	= 50#80        # ngrid liquid assets (bonds) (10 is the coarse grid used initially in finding the StE)
+	ny_copula::Int    	= 10        # ngrid income for refinement
+	nk_copula::Int      = 10        # ngrid illiquid assets (capital)
+	nm_copula::Int      = 10        # ngrid liquid assets (bonds)
+	kmin::Float64      	= 0.0       # gridmin capital
+	kmax::Float64      	= 2250.0    # gridmax capital
+	mmin::Float64      	= -6.6      # gridmin bonds
+	mmax::Float64      	= 1750.0    # gridmax bonds
+	ϵ::Float64         	= 1.0e-11 	# precision of solution 
 	
-	sol_algo::Symbol   	= :litx # options: :schur (Klein's method), :litx (accelerated linear time iteration)
-	verbose::Bool		= true	 # verbose model
-	reduc_value::Float64   = 1e-5  # Lost fraction of "energy" in the DCT compression for value functions
-	reduc_copula::Integer  = max(nm_copula,nk_copula,ny_copula)+4   # degree of complete polynomial used in copula perturbations
-	further_compress::Bool = false # remove non-volatile basis functions
+	sol_algo::Symbol   	   = :schur # options: :schur (Klein's method), :litx (accelerated linear time iteration)
+	verbose::Bool		   = true   # verbose model
+	reduc_value::Float64   = 1e-6   # Lost fraction of "energy" in the DCT compression for value functions
+	reduc_copula::Integer  = 30     # maximal sum of polynomial degrees used in copula perturbations
+                                    # set to ny_copula + nk_copula + nm_copula for no initial reduction
+	further_compress::Bool = true   # run model-reduction step based on MA(∞) representation
+	further_compress_critC = eps()  # critical value for eigenvalues for Value functions
+    further_compress_critS = ϵ      # critical value for eigenvalues for copula
 	
 	# Parameters that will be overwritten in the code
 	aggr_names::Array{String,1}  = ["Something"] 		# Placeholder for names of aggregates
@@ -145,8 +148,13 @@ julia> n_par = NumericalParameters(mmin = -6.6, mmax = 1000)
 	ncontrols::Int	     = 16 							# (placeholder for the) number of controls in total
 	ntotal::Int 	     = nstates+ncontrols 				# (placeholder for the) number of states+ controls in total
 	n_agg_eqn::Int 		 = nstates+ncontrols 		    # (placeholder for the) number of aggregate equations
-	naggr::Int 		     = length(aggr_names) 		# (placeholder for the) number of aggregate states + controls
-	
+	naggr::Int 		     = length(aggr_names) 		    # (placeholder for the) number of aggregate states + controls
+	ntotal_r::Int 	     = nstates+ncontrols
+	nstates_r::Int 	     = nstates
+	ncontrols_r::Int 	 = ncontrols
+
+	PRightStates::Matrix = I[1:nstates,1:nstates]
+	PRightAll::Matrix    = I[1:ntotal,1:ntotal]
 	
 	Π::Matrix{Float64}       	 = [Tauchen(m_par.ρ_h, ny - 1)[2] .* (1.0 .- m_par.ζ)  m_par.ζ .* ones(ny - 1);
                             		m_par.ι ./ (ny-1) * ones(1, ny-1) 1.0 .- m_par.ι]
@@ -193,6 +201,7 @@ stored in the fields `mode_start_file`, `data_file`, `save_mode_file` and `save_
 	shock_names::Array{Symbol, 1} 			= [:A, :Z, :ZI, :μ, :μw, :Gshock, :Rshock, :Sshock, :Tprogshock]
 	observed_vars_input::Array{Symbol, 1} 	= [:Ygrowth, :Igrowth, :Cgrowth, :N, :wgrowth, :RB,  :π, :TOP10Wshare, :TOP10Ishare, :τprog, :σ]
 
+	# Alternative model versions / shock structures commented out
 	# shock_names::Array{Symbol, 1} 			= [:A, :Z, :ZI, :μ, :μw, :Gshock, :Rshock]
 	# observed_vars_input::Array{Symbol, 1} 	= [:Ygrowth, :Igrowth, :Cgrowth, :N, :wgrowth, :RB,  :π]
 	nobservables 							= length(observed_vars_input)
@@ -201,26 +210,32 @@ stored in the fields `mode_start_file`, `data_file`, `save_mode_file` and `save_
 
 	me_treatment::Symbol 					= :unbounded
 	me_std_cutoff::Float64 					= 0.2
-	# meas_error_input::Array{Symbol, 1} 		=  []
+	
+	# meas_error_input::Array{Symbol, 1} 	=  []
 	meas_error_input::Array{Symbol, 1} 		=  [:TOP10Wshare, :TOP10Ishare, :τprog, :σ]
 	# meas_error_distr::Array{InverseGamma{Float64}, 1} = []
 	meas_error_distr::Array{InverseGamma{Float64}, 1} = [InverseGamma(ig_pars(0.0005, 0.001^2)...), InverseGamma(ig_pars(0.0005, 0.001^2)...), InverseGamma(ig_pars(0.0005, 0.001^2)...), InverseGamma(ig_pars(0.05, 0.01^2)...)]
 
-	
-	mode_start_file::String 				= "7_Saves/parameter_example.jld2"
+	# Leave empty to start with prior mode
+	mode_start_file::String 				= "" #"7_Saves/parameter_example.jld2" 
 
 	data_file::String 						= "bbl_data_inequality.csv"
 	save_mode_file::String 					= "7_Saves/HANKX_mode.jld2"
 	save_posterior_file::String 			= "7_Saves/HANKX_chain.jld2"
 
-	max_iter_mode::Int 						= 10
 	estimate_model::Bool 					= true
-	compute_hessian::Bool 					= false    # Loads hessian for example parameter space. Please re-compute when changing estimated parameters.
+
+	mode_compute::Bool 						= true
+	max_iter_mode::Int 						= 100
+	optimizer::Optim.AbstractOptimizer      = NelderMead()
+	compute_hessian::Bool 					= true    # Loads hessian for example parameter space. Please re-compute when changing estimated parameters.
+	f_tol::Float64							= 1.0e-2
+	x_tol::Float64							= 1.0e-2
+
 	multi_chain_init::Bool 					= false
 	ndraws::Int      						= 50
 	burnin::Int      						= 50
 	mhscale::Float64 						= 0.4
 	debug_print::Bool 						= true
-	mode_compute::Bool 						= true
 
 end

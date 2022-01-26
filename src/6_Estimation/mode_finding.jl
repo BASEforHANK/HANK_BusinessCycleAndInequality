@@ -16,8 +16,9 @@ Save estimation results to `e_set.save_mode_file`.
 - `Data`,`Data_missing`: data from `e_set.data_file`; marker for missing data
 - `H_sel`: selector matrix for states/controls that are observed
 - `priors`: priors of parameters (including measurement error variances)
+- `smoother_output`: output from the Kalman smoother
 """
-function mode_finding(XSSaggr, A, B, indexes, indexes_aggr, distrSS, compressionIndexes, m_par, n_par, e_set)
+function mode_finding(sr, lr, m_par, e_set, par_start)
 
   # Load data
   Data_temp = DataFrame(CSV.File(e_set.data_file; missingstring = "NaN"))
@@ -27,7 +28,7 @@ function mode_finding(XSSaggr, A, B, indexes, indexes_aggr, distrSS, compression
   for i in data_names_temp
     name_temp = get(e_set.data_rename, i, :none)
     if name_temp != :none
-      rename!(Data_temp, Dict(i=>name_temp))
+      rename!(Data_temp, Dict(i => name_temp))
     end
   end
 
@@ -37,9 +38,9 @@ function mode_finding(XSSaggr, A, B, indexes, indexes_aggr, distrSS, compression
   Data_missing = ismissing.(Data)
 
   # Built selection matrix
-  H_sel = zeros(e_set.nobservables, n_par.nstates + n_par.ncontrols)
+  H_sel = zeros(e_set.nobservables, sr.n_par.nstates_r + sr.n_par.ncontrols_r)
   for i in eachindex(observed_vars)
-    H_sel[i,   getfield(indexes,(observed_vars[i]))]  = 1.0
+    H_sel[i, getfield(sr.indexes_r, (observed_vars[i]))] = 1.0
   end
 
   # get names of estimated parameters and add measurement error params
@@ -53,12 +54,11 @@ function mode_finding(XSSaggr, A, B, indexes, indexes_aggr, distrSS, compression
   # Set up measurement error
   meas_error, meas_error_prior, meas_error_std = measurement_error(Data, observed_vars, e_set)
 
-  # Load starting values for parameters and update m_par
-  @load e_set.mode_start_file par_final
-  par = copy(par_final[1:end])
+  # initialize parameters at starting values
+  par = copy(par_start)
 
   if e_set.me_treatment != :fixed
-    m_par = Flatten.reconstruct(m_par, par[1:length(par) - length(meas_error)])
+    m_par = Flatten.reconstruct(m_par, par[1:length(par)-length(meas_error)])
   else
     m_par = Flatten.reconstruct(m_par, par)
   end
@@ -70,43 +70,47 @@ function mode_finding(XSSaggr, A, B, indexes, indexes_aggr, distrSS, compression
   end
 
   # Optimization
-  LL(pp) = -likeli(pp, Data, Data_missing, H_sel, XSSaggr,A,B, indexes, indexes_aggr, m_par, n_par, e_set, distrSS, compressionIndexes, priors, meas_error, meas_error_std)[3]
+  LL(pp) = -likeli(pp, Data, Data_missing, H_sel, priors, meas_error, meas_error_std,
+    sr, lr, m_par, e_set)[3]
 
-  func = TwiceDifferentiable(pp -> LL(pp) ,  par)
-  opti = optimize(func, par, NelderMead(), Optim.Options(show_trace=true, store_trace = true, x_tol = 1.0e-3, f_tol = 1.0e-3, iterations = e_set.max_iter_mode))
+  func = TwiceDifferentiable(pp -> LL(pp), par)
+  OptOpt = Optim.Options(show_trace = true, store_trace = true,
+    x_tol = e_set.x_tol, f_tol = e_set.f_tol, iterations = e_set.max_iter_mode)
+
+  opti = optimize(func, par, e_set.optimizer, OptOpt)
+
   par_final = Optim.minimizer(opti)
-  posterior_mode = - Optim.minimum(opti)
+  posterior_mode = -Optim.minimum(opti)
+  # opti = csminwel(func,par,show_trace=true, store_trace = true,
+  #               xtol = e_set.x_tol, ftol = e_set.f_tol, iterations = e_set.max_iter_mode)
+  # par_final = opti[1].minimizer
+  # posterior_mode = - opti[1].minimum
 
   # Update estimated model parameters and resolve model
   if e_set.me_treatment != :fixed
-    m_par = Flatten.reconstruct(m_par, par_final[1:length(par_final) - length(meas_error)])
+    m_par = Flatten.reconstruct(m_par, par_final[1:length(par_final)-length(meas_error)])
   else
     m_par = Flatten.reconstruct(m_par, par_final)
   end
-  State2Control, LOMstate, alarm_sgu, nk = SGU_estim(XSSaggr,  A, B, m_par, n_par, indexes, indexes_aggr, distrSS; estim = true)
 
   # Run Kalman smoother
-  smoother_output = likeli(par_final, Data, Data_missing, H_sel, XSSaggr, A, B, indexes, indexes_aggr, m_par, n_par, e_set,
-                    distrSS, compressionIndexes, priors, meas_error, meas_error_std; smoother = true)
+  smoother_output, State2Control, LOMstate =
+    likeli(par_final, Data, Data_missing, H_sel, priors,
+      meas_error, meas_error_std, sr, lr, m_par, e_set; smoother = true)
 
- # Intermediate save just because computing the hessian takes so long
+  # Intermediate save just because computing the hessian takes so long
   hessian_final = Matrix{Float64}(I, length(par_final), length(par_final))
-  @save e_set.save_mode_file par_final hessian_final posterior_mode meas_error meas_error_std parnames Data Data_missing H_sel priors smoother_output State2Control LOMstate indexes indexes_aggr m_par n_par e_set
+  # @save e_set.save_mode_file par_final hessian_final posterior_mode meas_error meas_error_std parnames Data Data_missing H_sel priors smoother_output sr lr m_par e_set
 
   # Compute Hessian at posterior mode
- if e_set.compute_hessian == true
-    if n_par.verbose
+  if e_set.compute_hessian == true
+    if sr.n_par.verbose
       println("Computing Hessian. This might take a while...")
     end
     hessian_final = Optim.hessian!(func, par_final)
-    @save e_set.save_mode_file par_final hessian_final posterior_mode meas_error meas_error_std parnames Data Data_missing H_sel priors smoother_output State2Control LOMstate indexes indexes_aggr m_par n_par e_set
-
   elseif e_set.compute_hessian == false
-    
     HANKEstim.@load "7_Saves/parameter_example.jld2" hessian_final
+  end
 
-    @save e_set.save_mode_file par_final hessian_final posterior_mode meas_error meas_error_std parnames Data Data_missing H_sel priors smoother_output State2Control LOMstate indexes indexes_aggr m_par n_par e_set
- end
-
-return par_final, hessian_final, posterior_mode, meas_error, meas_error_std, parnames, Data, Data_missing, H_sel, priors
+  return par_final, hessian_final, posterior_mode, meas_error, meas_error_std, parnames, Data, Data_missing, H_sel, priors, smoother_output, m_par
 end

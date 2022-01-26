@@ -4,7 +4,7 @@
 
 
 @doc raw"""
-    Fsys_agg(X,XPrime,Xss,distrSS,m_par,n_par,indexes)
+    Fsys_agg(X, XPrime, Xss, distrSS, m_par, n_par, indexes)
 
 Return deviations from aggregate equilibrium conditions.
 
@@ -71,7 +71,7 @@ function Fsys_agg(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}
     Wagesum                 = N * w                                         # Total wages in economy t
     WagesumPrime            = NPrime * wPrime                               # Total wages in economy t+1
 
-    YREACTION = Y ./ exp(Xss[indexes.YSS])                                  # Policy reaction function to Y
+    YREACTION = Ygrowth                                  # Policy reaction function to Y
 
     # tax progressivity variabels used to calculate e.g. total taxes
     tax_prog_scale          = (m_par.γ + m_par.τ_prog) / ((m_par.γ + τprog))                        # scaling of labor disutility including tax progressivity

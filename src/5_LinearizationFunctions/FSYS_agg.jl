@@ -1,5 +1,5 @@
 @doc raw"""
-    Fsys_agg(X,XPrime,Xss,distrSS,m_par,n_par,indexes)
+    Fsys_agg(X, XPrime, Xss, distrSS, m_par, n_par, indexes)
 
 Return deviations from aggregate equilibrium conditions.
 

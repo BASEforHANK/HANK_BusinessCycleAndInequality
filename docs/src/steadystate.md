@@ -1,6 +1,6 @@
 # Computation of the steady state and dimensionality reduction
 !!! note
-    Most of the code of this section is in the folder `4_HetAgentsFcns`.
+    Most of the code of this section is in the folder `4_HetAgentsFcns`, except for  `prepare_linearization()` which is in `5_LinearizationFunctions`.
 
 The model features uninsured income shocks ``y`` (by assumption, all workers supply the same
 efficiency units of labor [^BBL], so idiosyncratic productivity shocks translate
@@ -14,36 +14,37 @@ over these idiosyncratic states. We do dimensionality reduction [^BL] by applyin
 the Discrete Cosine Transformation to the marginal value functions and approximating
 the joint distribution with a copula and state-dependent marginals.
 
-The main functions are [`find_steadystate()`](@ref) and [`prepare_linearization()`](@ref):
+The main functions are [`HANKEstim.find_steadystate()`](@ref) and [`HANKEstim.prepare_linearization()`](@ref):
 
 ## Overview of `find_steadystate`
 ```@docs
-find_steadystate
+HANKEstim.find_steadystate
 ```
 The function takes the parameter `struct` `ModelParameters` as input `m_par` (see [Parameters](@ref)).
 
 To find the stationary equilibrium, we proceed in roughly the following steps:
 
 1. instantiate the parameter `struct` `NumericalParameters` as `n_par` (see [Parameters](@ref)).
-   Within the struct, we set the number of income states [`ny`] and use the [`Tauchen()`](@ref) method to obtain a grid and a transition matrix of income, given the autocorrelation of the income process [`m_par.ρ_h`]. Then, include entrepreneurial state.
-2. find equilibrium capital stock (by finding a root of [`Kdiff()`](@ref)), where
-    the supply of capital by households is calculated in [`Ksupply()`](@ref),
-    which uses the Endogenous Grid Method (see [`EGM_policyupdate`](@ref))
+   Within the struct, we set the number of income states [`ny`] and use the [`HANKEstim.Tauchen()`](@ref) method to obtain a grid and a transition matrix of income, given the autocorrelation of the income process [`m_par.ρ_h`]. Then, include entrepreneurial state.
+2. find equilibrium capital stock (by finding a root of [`HANKEstim.Kdiff()`](@ref)), where
+    the supply of capital by households is calculated in [`HANKEstim.Ksupply()`](@ref),
+    which uses the Endogenous Grid Method (see [`HANKEstim.EGM_policyupdate`](@ref))
     to iteratively obtain optimal policies and marginal value functions
 
 ## Overview of `prepare_linearization`
 ```@docs
-prepare_linearization
+HANKEstim.prepare_linearization
 ```
-We first calculate other equilibrium quantities and produce distributional summary statistics ([`distrSummaries()`](@ref)). Next, we reduce the dimensionality:
+We first calculate other equilibrium quantities and produce distributional summary statistics ([`HANKEstim.distrSummaries()`](@ref)). Next, we reduce the dimensionality:
 
 1. compute coefficients of the Chebyshev polynomials that serve as basis functions
     for ``V_m`` and ``V_k``, using the Discrete Cosine Transformation (Julia-package
     `FFTW`), and retain those that explain the most of its variance, up to 
     `100*(1-n_par.reduc)` percent. Save their indices in `compressionIndexes`
-2. compute the Copula as a function that maps three marginal
-    distributions to a linear interpolation of the joint distribution on its
-    marginals (see [`mylinearinterpolate3()`](@ref))
+2. prepare a node mesh on which the time-varying linear interpolant of the copula
+     is defined. The grid in each ``m``, ``k``, and ``y`` dimension is selected 
+     such that each resulting bin holds approximately the same share of the
+     respective aggregate variable. 
 
 Lastly, we collect the steady state values of all model variables in the 
 vector `XSS` (see [`@writeXSS`](@ref)). The *state* variables consist of
@@ -53,7 +54,7 @@ marginal value functions (over the full grid) and the aggregate control variable
 (collected in `control_names`; these vectors are defined in the main script `HANKEstim.jl`).
 
 While the steady state marginal value functions have full dimensionality,
-in the vectors that collect *deviations* from steady state (in [`Fsys()`](@ref), those are `X` and `XPrime`)
+in the vectors that collect *deviations* from steady state (in [`HANKEstim.Fsys()`](@ref), those are `X` and `XPrime`)
 only the coefficients of the most important Chebyshev polynomials are saved.
 Additionally, the deviations of the marginal distributions are saved with one entry short of
 the grid size, since the marginals are restricted to sum up to 1.
@@ -63,7 +64,10 @@ that has two fields for each variable: steady state value and deviation.
 We also construct the vector `XSSaggr` and the `struct` `indexes_aggr`,
 which are similar to the above but only store (and manage) aggregate variables.
 This is useful for differentiating only with respect to aggregate variables
-in the estimation part (see [`SGU_estim()`](@ref)).
+in the estimation part (see [`HANKEstim.SGU_estim()`](@ref)).
+
+!!! warning
+    Be sure that you edit `prepare_linearization()` and not `prepare_linearization_generated()` which will be overwritten by the model parser based on `prepare_linearization()`.
 
 ## Parameters
 The model parameters for the steady state have to be calibrated. We set them
@@ -74,7 +78,7 @@ shocks.
 ModelParameters
 ```
 The numerical parameters contain the grid (and the meshes) on which the
-stationary equilibrium is solved, discretization results of [`find_steadystate()`](@ref) 
+stationary equilibrium is solved, discretization results of [`HANKEstim.find_steadystate()`](@ref) 
 like the transition matrix of income and the joint distribution, and other
 parameters that determine the numerical approximation or solution technique,
 like `reduc` or `sol_algo`.
@@ -83,16 +87,13 @@ NumericalParameters
 ```
 ## Find stationary equilibrium: functions
 ```@docs
-Tauchen
-Kdiff
-Ksupply
-EGM_policyupdate
-distrSummaries
+HANKEstim.Tauchen
+HANKEstim.Kdiff
+HANKEstim.Ksupply
+HANKEstim.EGM_policyupdate
+HANKEstim.distrSummaries
 ```
-## Dimensionality reduction: functions
-```@docs
-mylinearinterpolate3
-```
+
 ## Collect variables: macros
 ```@docs
 @writeXSS

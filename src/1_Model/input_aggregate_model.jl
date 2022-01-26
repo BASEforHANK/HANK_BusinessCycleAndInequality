@@ -35,7 +35,7 @@
     Wagesum                 = N * w                                         # Total wages in economy t
     WagesumPrime            = NPrime * wPrime                               # Total wages in economy t+1
 
-    YREACTION = Y ./ exp(Xss[indexes.YSS])                                  # Policy reaction function to Y
+    YREACTION = Ygrowth                                  # Policy reaction function to Y
 
     # tax progressivity variabels used to calculate e.g. total taxes
     tax_prog_scale          = (m_par.γ + m_par.τ_prog) / ((m_par.γ + τprog))                        # scaling of labor disutility including tax progressivity

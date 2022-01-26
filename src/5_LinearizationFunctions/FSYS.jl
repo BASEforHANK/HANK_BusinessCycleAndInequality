@@ -1,5 +1,5 @@
 @doc raw"""
-    Fsys(X,XPrime,Xss,m_par,n_par,indexes,Γ,compressionIndexes,DC,IDC)
+    Fsys(X, XPrime, Xss, m_par, n_par, indexes, Γ, compressionIndexes, DC, IDC, DCD, IDCD)
 
 Equilibrium error function: returns deviations from equilibrium around steady state.
 
@@ -9,8 +9,8 @@ and *Heterogeneous Agent Part*.
 # Arguments
 - `X`,`XPrime`: deviations from steady state in periods t [`X`] and t+1 [`XPrime`]
 - `Xss`: states and controls in steady state
-- `Γ`,`DC`,`IDC`: transformation matrices to retrieve marginal distributions [`Γ`] and
-    marginal value functions [`DC`,`IDC`] from deviations
+- `Γ`, `DC`, `IDC`, `DCD`,`IDCD`: transformation matrices to retrieve marginal distributions [`Γ`],
+    marginal value functions [`DC`,`IDC`], and the (linear) interpolant of the copula [`DCD`,`IDCD`] from deviations
 - `indexes`,`compressionIndexes`: access `Xss` by variable names
     (DCT coefficients of compressed ``V_m`` and ``V_k`` in case of `compressionIndexes`)
 
@@ -107,8 +107,8 @@ function Fsys(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}, m_
     # myAkimaInterp3(s_m_m, s_m_k, s_m_y, COP_Dev, x, y, z)
    
     Copula(x::AbstractVector,y::AbstractVector,z::AbstractVector) = 
-    mylinearinterpolate3(CDF_m_SS, CDF_k_SS, CDF_y_SS, COP_SS, x, y, z) .+
-    mylinearinterpolate3(s_m_m, s_m_k, s_m_y, COP_Dev, x, y, z)
+    myinterpolate3(CDF_m_SS, CDF_k_SS, CDF_y_SS, COP_SS, x, y, z) .+
+    myinterpolate3(s_m_m, s_m_k, s_m_y, COP_Dev, x, y, z)
 
     CDF_joint     = Copula(CDF_m[:], CDF_k[:], CDF_y[:]) # roughly 5% of time
     PDF_joint     = cdf_to_pdf(CDF_joint)
@@ -211,8 +211,8 @@ function Fsys(X::AbstractArray, XPrime::AbstractArray, Xss::Array{Float64,1}, m_
     # myAkimaInterp3(CDF_m_SS, CDF_k_SS, CDF_y_SS, COP_SS, x, y, z)
 
     CopulaDevPrime(x::AbstractVector,y::AbstractVector,z::AbstractVector) = 
-    mylinearinterpolate3(CDF_m_Prime, CDF_k_Prime, CDF_y_Prime, pdf_to_cdf(PDF_jointPrime), x, y, z) .-
-    mylinearinterpolate3(CDF_m_SS, CDF_k_SS, CDF_y_SS, COP_SS, x, y, z)
+    myinterpolate3(CDF_m_Prime, CDF_k_Prime, CDF_y_Prime, pdf_to_cdf(PDF_jointPrime), x, y, z) .-
+    myinterpolate3(CDF_m_SS, CDF_k_SS, CDF_y_SS, COP_SS, x, y, z)
 
     CDF_Dev      = CopulaDevPrime(s_m_m, s_m_k, s_m_y) # interpolate deviations on copula grid
     COP_thet     = compress(compressionIndexes[3], cdf_to_pdf(CDF_Dev - COP_DevPrime), DCD, IDCD) # calculate DCT of deviations

@@ -46,48 +46,59 @@ The file `Parameters.jl` contains three structures to provide model parameters, 
 The model parameters for the steady state have to be calibrated. We set them in the `struct` [`ModelParameters`](@ref). It also contains all other parameters that are estimated, including the stochastic process-parameters for the aggregate shocks. Each model parameter has a line of code. It starts with the parameter name as it is used in the code and a default value. The next two entries are its ascii name and its name for LaTeX output. The fourth entry is the prior if the parameter is to be estimated. Please see the [Distributions.jl](https://github.com/JuliaStats/Distributions.jl)-package for available options. The fifth entry is a Boolean whether the parameter should be estimated (`true`) or not (`false`)
 
 
-### Steady state and dimensionality reduction
+### Steady state and first dimensionality reduction
 The command
 ```
-sr = compute_steadystate(m_par)
+sr_full = compute_steadystate(m_par)
 ```
-calls the functions [`find_steadystate()`](@ref) and [`prepare_linearization()`](@ref) and saves their returns in an instance `sr` of the `struct` `SteadyResults`.
-`sr` contains vectors of the steady-state variables (together with index-vectors to reference them by name),
-the steady-state distribution of income and assets, and devices to retrieve the full states from the
-compressed state vectors.
+calls the functions [`HANKEstim.find_steadystate()`](@ref) and [`HANKEstim.prepare_linearization()`](@ref) and saves their returns in an instance `sr_full` of the `struct` `SteadyResults`.
+`sr_full` contains vectors of the steady-state variables (together with index-vectors to reference them by name) and
+the steady-state distribution of income and assets. It also contains the compressed marginal value functions(using DCTs on the steady-state value functions).
 
 !!! tip
-    `sr` may be saved to the local file system by calling
+    `sr_full` may be saved to the local file system by calling
     ```
-    HANKEstim.@save "7_Saves/steadystate.jld2" sr
+    @save "7_Saves/steadystate.jld2" sr_full
     ```
     and can be loaded for a future session with
     ```
-    HANKEstim.@load "7_Saves/steadystate.jld2" sr
+    @load "7_Saves/steadystate.jld2" sr_full
     ```
 
 ### Linearize full model
-After computing the steady state and saving it in the `SteadyResults`-struct named `sr`,
+After computing the steady state and saving it in the `SteadyResults`-struct named `sr_full`,
 ```
-lr = linearize_full_model(sr, m_par)
+lr_full = linearize_full_model(sr_full, m_par)
 ```
-computes the linear dynamics of the model around the steady state and saves a state-space representation
-in the instance `lr` of the `struct` `LinearResults` (see [`linearize_full_model()`](@ref)).
+computes the linear dynamics of the model around the steady state (in the background, this calls [`HANKEstim.SGU_estim()`](@ref)) and saves a state-space representation
+in the instance `lr_full` of the `struct` `LinearResults` (see [`linearize_full_model()`](@ref)).
 
-While solving for the first-order dynamics of the full model takes a few seconds (after having been compiled, i.e. after the first run),
-a factorization result [^BBL] makes it possible to only solve the *aggregate* part of the model
-when estimating the parameters (see [`SGU_estim()`](@ref)), which significantly reduces its computation time.
+Linearization of the full model takes a few seconds. The resulting state space is, because the copula and the value functions are treated fully flexible in this first step, relatively large. As a result, also computing the first-order dynamics of this model takes a few seconds as well.
 
-Both [`SGU()`](@ref) and [`SGU_estim()`](@ref) call [`SolveDiffEq()`](@ref) to obtain a solution to the linearized difference equation.
+### Model reduction
+This large state-space representation can however be reduced substantially. For this purpose, run  
+```
+sr_reduc    = model_reduction(sr_full, lr_full, m_par)
+```
+which calculates the unconditional covariance matrix of all state and control variables and rewrites the coefficients of the value functions and the copula as linear combinations of some underlying factors. Only those factors that have eigenvalues above the precision predefined in `sr_full.n_par.compress_critC` and `sr_full.n_par.compress_critS` are retained.
+
+### Model solution after a parameter change / after reduction
+This smaller model (or any model after a parameter change that doesn't affect the steady state) can be solved quickly using a factorization result from [^BBL] running
+```
+lr_reduc    = update_model(sr_reduc, lr_full, m_par)
+```
+In the background, this calls [`HANKEstim.SGU_estim()`](@ref), which only updates the Jacobian entries that regard the **aggregate** model. (Note that both [`HANKEstim.SGU()`](@ref) and [`HANKEstim.SGU_estim()`](@ref) call [`HANKEstim.SolveDiffEq()`](@ref) to obtain a solution to the linearized difference equation.)
+
+This model update step takes about 200ms on a standard computer for a medium size resolution.
 
 ### Estimation of model parameters
-Having obtained `SteadyResults` `sr` and `LinearResults` `lr`, the command
+Having obtained `SteadyResults` `sr_reduc` and `LinearResults` `lr_reduc`, the command
 ```
-er = find_mode(sr, lr, m_par)
+er_mode = find_mode(sr_reduc, lr_reduc, m_par)
 ```
-computes the mode of the likelihood, i.e. the parameter vector that maximizes the probability of
-observing the data given the model, and saves the results in `er`, an instance of `struct` `EstimResults`
-(see [`mode_finding()`](@ref)). We use the Kalman filter to compute the likelihood, and the package
+computes the mode of the likelihood, i.e., the parameter vector that maximizes the probability of
+observing the data given the model, and saves the results in `er_mode`, an instance of `struct` `EstimResults`
+(see [`HANKEstim.mode_finding()`](@ref)). We use the Kalman filter to compute the likelihood, and the package
 `Optim` for optimization. Settings for the estimation can adjusted in the `struct` [`EstimationSettings`](@ref).
 
 !!! warning
@@ -95,7 +106,7 @@ observing the data given the model, and saves the results in `er`, an instance o
 
 Lastly,
 ```
-montecarlo(sr, lr, er, m_par)
+montecarlo(sr_reduc, lr_reduc, er_mode, m_par)
 ```
 uses a Monte Carlo Markov Chain method to trace out the posterior probabilites of the estimated parameters.
 The final estimates (and further results) are saved in a file with the name given by the field `save_posterior_file`

@@ -1,5 +1,5 @@
 @doc raw"""
-@make_struct_aggr(struct_name) 
+    @make_struct_aggr(struct_name) 
 
 Make `struct` `struct_name` with two fields for every variable name in `aggr_names`
 (for steady state value and for deviation from it).
@@ -24,7 +24,7 @@ macro make_struct_aggr(struct_name)
 end
 
 @doc raw"""
-@make_struct(struct_name)
+    @make_struct(struct_name)
 
 Make `struct` `struct_name` with two fields for every variable name in `s_names` (state variables)
 and `c_names` (control variables), together with fields for distribution-states
@@ -74,6 +74,7 @@ struct SteadyResults
 	XSS
 	XSSaggr
 	indexes
+    indexes_r
 	indexes_aggr
 	compressionIndexes
 	n_par

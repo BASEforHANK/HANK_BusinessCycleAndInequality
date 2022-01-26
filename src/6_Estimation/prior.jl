@@ -1,3 +1,8 @@
+# contains
+# - prioreval
+# - beta_pars
+# - ig_pars
+
 @doc raw"""
     prioreval(par,priors)
 
@@ -38,7 +43,7 @@ Compute the location and shape parameter of the Beta distribution from the mean 
 """
 function beta_pars(betamean, betavariance)
     b = (betamean - 2 * betamean^2 + betamean^3 - betavariance + betamean * betavariance) / betavariance
-    a = - betamean * b / (betamean - 1)
+    a = -betamean * b / (betamean - 1)
 
     return a, b
 end

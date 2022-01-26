@@ -1,7 +1,7 @@
 # Linear perturbation around steady state
 
 !!! note
-    The main functions of this section are in the folder `LinearizationFunctions`.
+    The main functions of this section are in the folder `5_LinearizationFunctions`.
 
 The model is linearized with respect to aggregate variables. For this,
 we write the equilibrium conditions in the form of
@@ -13,31 +13,31 @@ to transform this equation into a linearized observation equation ``d = gx*k`` a
 a linearized state transition equation ``k' = hx*k``, where ``k`` is a vector of the
 *state* variables and ``d`` is a vector of the *control* variables (``X = \begin{bmatrix} k \\ d \end{bmatrix}``).
 
-In our code, ``F`` is implemented as [`Fsys()`](@ref), while differentiating and
-solving for ``gx`` and ``hx`` is done in [`SGU()`](@ref), and [`linearize_full_model()`](@ref)
+In our code, ``F`` is implemented as [`HANKEstim.Fsys()`](@ref), while differentiating and
+solving for ``gx`` and ``hx`` is done in [`HANKEstim.SGU()`](@ref), and [`linearize_full_model()`](@ref)
 returns the results as a `struct` `LinearResults`:
 ```@docs
 linearize_full_model
 ```
 ## Overview of `SGU()`
 ```@docs
-SGU
+HANKEstim.SGU
 ```
 The function executes the following steps:
 
 - generate devices to retrieve distribution and marginal value functions from
     compressed states/controls (`Γ` and `DC`,`IDC`)
-- calculate the first derivative of [`Fsys()`](@ref) with respect to `X` and `XPrime`.
+- calculate the first derivative of [`HANKEstim.Fsys()`](@ref) with respect to `X` and `XPrime`.
     We use automatic differentiation (implemented in Julia by the package `ForwardDiff`).
     Partial derivatives are calculated using the `ForwardDiff.jacobian()` function.
     We exploit that some partial derivatives have known values (contemporaneous marginal value
     functions and the future marginal distributions) and set them directly instead of calculating them [^BL].
 
-- compute linear observation and state transition equations using the [`SolveDiffEq()`](@ref) function
+- compute linear observation and state transition equations using the [`HANKEstim.SolveDiffEq()`](@ref) function
 
 ## Overview of `SolveDiffEq()'
 ```@docs
-SolveDiffEq
+HANKEstim.SolveDiffEq
 ```
 - compute linear observation and state transition equations. The solution algorithm is set
     in `n_par.sol_algo`, with the options `:schur` (mentioned above) and `:litx` [^lit]. The results are matrices that map contemporaneous states to controls [`gx`],
@@ -46,32 +46,35 @@ SolveDiffEq
 
 ## Overview of `Fsys()`
 ```@docs
-Fsys
+HANKEstim.Fsys
 ```
-The function [`Fsys()`](@ref) proceeds in the following way:
+The function [`HANKEstim.Fsys()`](@ref) proceeds in the following way:
 1. set up vector `F`, that contains the errors to all equilibrium conditions. There are as many conditions
     as deviations from steady state (length of `X`,`XPrime`), and conditions are indexed with
     respective model variable in `IndexStruct` `indexes`
 2. generate locally all aggregate variables (for both periods) using [`@generate_equations`](@ref)
-3. construct the distributions and the marginal value functions from the steady state values
-    and the (compressed) deviations
+3. construct the full-grid marginal distributions, marginal value functions, and the copula
+    from the steady-state values and the (compressed) deviations (for the copula, the selection of DCT
+    coefficients that can be perturbed ensures that also the perturbed function is a copula)
 4. write all equilibrium condition-errors with respect to *aggregate* variables to `F`, using
-    [`Fsys_agg()`](@ref)
-5. compute optimal policies with [`EGM_policyupdate()`](@ref), given
+    [`HANKEstim.Fsys_agg()`](@ref)
+5. compute optimal policies with [`HANKEstim.EGM_policyupdate()`](@ref), given
     future marginal value functions, prices, and individual incomes. Infer present marginal
     value functions from them (envelope theorem) and set the difference to assumed present
     marginal value functions (in terms of their compressed deviation from steady state)
     as equilibrium condition-errors (*backward iteration of the value function*)
-6. compute future distribution from previous distribution and optimal asset policies. Set
-    difference to assumed future marginal distributions as equilibrium condition-errors
-    (*forward iteration of the distribution*)
-7. compute distribution summary statistics with [`distrSummaries()`](@ref) and write
+6. compute future marginal distributions and the copula (on the copula grid) from previous distribution and optimal asset policies. Interpolate when necessary. Set difference to assumed future marginal distributions and copula values on the copula nodes as equilibrium condition-errors (*forward iteration of the distribution*)
+7. compute distribution summary statistics with [`HANKEstim.distrSummaries()`](@ref) and write
     equilibrium conditions with their respective (control) variables
 8. return `F`
+
+Note that the copula is treated as the sum of two interpolants. An interpolant based on the steady-state distribution using the full steady-state marginals as a grid and a "deviations"-function that is defined on the copula grid generated in `prepare_linearization()`. The actual interpolation is carried out with [`HANKEstim.myinterpolate3()`](@ref). Default setting is trilinear interpolation, the code also allows for 3d-Akima interpolation.
+
 ### Called functions / macros
 ```@docs
 @generate_equations
-Fsys_agg
+HANKEstim.Fsys_agg
+HANKEstim.myinterpolate3
 ```
 
 [^Klein]:
