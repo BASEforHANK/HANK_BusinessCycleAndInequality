@@ -84,6 +84,8 @@ struct SteadyResults
 	CDF_k
 	CDF_y
 	distrSS
+	state_names
+	control_names
 end
   
 struct LinearResults

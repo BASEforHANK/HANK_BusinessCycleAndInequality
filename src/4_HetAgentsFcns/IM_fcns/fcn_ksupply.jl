@@ -69,8 +69,7 @@ function Ksupply(RB_guess::Float64, R_guess::Float64, n_par::NumericalParameters
         Vm              = Vm_new
         Vk              = Vk_new
     end
-    println(dist)
-    
+    # println("EGM Iterations: ", count)    
     #------------------------------------------------------
     # Find stationary distribution (Is direct transition better for large model?)
     #------------------------------------------------------

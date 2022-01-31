@@ -81,6 +81,9 @@ This large state-space representation can however be reduced substantially. For 
 sr_reduc    = model_reduction(sr_full, lr_full, m_par)
 ```
 which calculates the unconditional covariance matrix of all state and control variables and rewrites the coefficients of the value functions and the copula as linear combinations of some underlying factors. Only those factors that have eigenvalues above the precision predefined in `sr_full.n_par.compress_critC` and `sr_full.n_par.compress_critS` are retained.
+!!! warning
+    After model reduction, `sr_reduc.indexes_r` contains the indexes that map correctly into the states/controls used in `LOMstate` and `State2Control`.
+
 
 ### Model solution after a parameter change / after reduction
 This smaller model (or any model after a parameter change that doesn't affect the steady state) can be solved quickly using a factorization result from [^BBL] running

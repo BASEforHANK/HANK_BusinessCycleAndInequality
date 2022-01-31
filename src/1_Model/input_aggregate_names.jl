@@ -14,15 +14,17 @@ state_names = [
     "Gshock", "Tprogshock", "Rshock", "Sshock"
 ]
 
-control_names = [
-    "r", "w", "K", "π" ,"πw", "Y" ,"C", "q",  "N", "mc", "mcw", "u",
-    "Ht", "av_tax_rate", "T", "I", "B","BD", "BY","TY", "mcww", "G", "τlev", "τprog", "GiniC",
-    "GiniX", "TOP10Ishare", "TOP10Inetshare", "TOP10Wshare", "sdlogy",
-     "Ygrowth", "Bgrowth", "Igrowth", "wgrowth", "Cgrowth", "Tgrowth", "LP", "LPXA", "unionprofits", "profits"
-]
-# Identify distributional summary variables (b/c no equations in aggregate model expected)
+# List cross-sectional controls / distributional summary variables (no equations in aggregate model expected)
 distr_names   = ["GiniC", "GiniX", "TOP10Ishare", "TOP10Inetshare", "TOP10Wshare", "sdlogy"]
 
+control_names = [
+    "r", "w", "K", "π" ,"πw", "Y" ,"C", "q",  "N", "mc", "mcw", "u",
+    "Ht", "av_tax_rate", "T", "I", "B","BD", "BY","TY", "mcww", "G", "τlev", "τprog",
+     "Ygrowth", "Bgrowth", "Igrowth", "wgrowth", "Cgrowth", "Tgrowth", "LP", "LPXA", "unionprofits", "profits"
+]
+
+# All controls in one array
+control_names       = [distr_names; control_names]
 # All names in one array
 aggr_names          = [state_names; control_names]
 

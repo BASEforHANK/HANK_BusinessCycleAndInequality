@@ -37,7 +37,7 @@ function prepare_linearization(KSS, VmSS, VkSS, distrSS, n_par, m_par)
     NSS       = employment(KSS, 1.0./(m_par.μ*m_par.μw), m_par)
     rSS       = interest(KSS, 1.0./m_par.μ, NSS, m_par) + 1.0 
     wSS       = wage(KSS, 1.0./m_par.μ, NSS, m_par)
-    YSS       = output(KSS, 1.0, NSS, m_par)                                               # stationary income distribution
+    YSS       = output(KSS, 1.0, NSS, m_par)                              # stationary income distribution
     
     profitsSS       = (1.0 .- 1.0./m_par.μ) .*YSS
     unionprofitsSS  = (1.0 .- 1.0/m_par.μw) .* wSS .* NSS

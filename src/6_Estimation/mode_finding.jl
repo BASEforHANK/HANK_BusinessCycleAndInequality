@@ -70,21 +70,47 @@ function mode_finding(sr, lr, m_par, e_set, par_start)
   end
 
   # Optimization
-  LL(pp) = -likeli(pp, Data, Data_missing, H_sel, priors, meas_error, meas_error_std,
-    sr, lr, m_par, e_set)[3]
+  # Define objective function
+  Laux(pp)  = -likeli(pp, Data, Data_missing, H_sel, priors, meas_error, 
+                   meas_error_std, sr, lr, m_par, e_set)[3]
 
-  func = TwiceDifferentiable(pp -> LL(pp), par)
-  OptOpt = Optim.Options(show_trace = true, store_trace = true,
-    x_tol = e_set.x_tol, f_tol = e_set.f_tol, iterations = e_set.max_iter_mode)
-
-  opti = optimize(func, par, e_set.optimizer, OptOpt)
-
+ 
+  # Code variant with box-constrained optimization, used for updating compression
+  lx   = minimum.(support.(priors))
+  ux   = maximum.(support.(priors))
+  OptOpt  = Optim.Options(show_trace = true, show_every = 20, store_trace = true, x_tol = e_set.x_tol,
+                          f_tol = e_set.f_tol, iterations = 150, outer_iterations = 8)
+  opti    = optimize(Laux, lx, ux, par ,Optim.Fminbox(NelderMead()), OptOpt)
   par_final = Optim.minimizer(opti)
-  posterior_mode = -Optim.minimum(opti)
-  # opti = csminwel(func,par,show_trace=true, store_trace = true,
-  #               xtol = e_set.x_tol, ftol = e_set.f_tol, iterations = e_set.max_iter_mode)
-  # par_final = opti[1].minimizer
-  # posterior_mode = - opti[1].minimum
+  # Update estimated model parameters and resolve model
+  if e_set.me_treatment != :fixed
+    m_par = Flatten.reconstruct(m_par, par_final[1:length(par_final)-length(meas_error)])
+  else
+    m_par = Flatten.reconstruct(m_par, par_final)
+  end
+  println("updating model reduction after initial optimization")
+  @set! sr.n_par.further_compress = false 
+  sr_aux = model_reduction(sr, lr, m_par) # revert to full model
+  lr_aux = update_model(sr_aux, lr, m_par) # solve full model
+  @set! sr_aux.n_par.further_compress = true
+  sr = model_reduction(sr_aux, lr_aux, m_par) # update model reduction
+  lr = update_model(sr, lr_aux, m_par)   # solve new reduced model
+
+  # Built selection matrix
+  H_sel = zeros(e_set.nobservables, sr.n_par.nstates_r + sr.n_par.ncontrols_r)
+  for i in eachindex(observed_vars)
+    H_sel[i, getfield(sr.indexes_r, (observed_vars[i]))] = 1.0
+  end
+
+  # Redefine objective function
+  LL(pp)  = -likeli(pp, Data, Data_missing, H_sel, priors, meas_error, 
+                    meas_error_std, sr, lr, m_par, e_set)[3]
+
+  OptOpt  = Optim.Options(show_trace = true, show_every = 20, store_trace = true, x_tol = e_set.x_tol,
+                           f_tol = e_set.f_tol, iterations = e_set.max_iter_mode)
+  opti    = optimize(LL, Optim.minimizer(opti) , e_set.optimizer, OptOpt)
+  par_final = Optim.minimizer(opti)
+  
 
   # Update estimated model parameters and resolve model
   if e_set.me_treatment != :fixed
@@ -92,25 +118,48 @@ function mode_finding(sr, lr, m_par, e_set, par_start)
   else
     m_par = Flatten.reconstruct(m_par, par_final)
   end
+  ll_old = -Optim.minimum(opti)
+  
+  println("updating model reduction after mode finding finished")
+  @set! sr.n_par.further_compress = false 
+  sr_aux = model_reduction(sr, lr, m_par) # revert to full model
+  lr_aux = update_model(sr_aux, lr, m_par) # solve full model
+  println("new reduction")
+  @set! sr_aux.n_par.further_compress = true
+  sr = model_reduction(sr_aux, lr_aux, m_par) # update model reduction
+  lr = update_model(sr, lr_aux, m_par)   # solve new reduced model
+  # Built selection matrix
+  H_sel = zeros(e_set.nobservables, sr.n_par.nstates_r + sr.n_par.ncontrols_r)
+  for i in eachindex(observed_vars)
+    H_sel[i, getfield(sr.indexes_r, (observed_vars[i]))] = 1.0
+  end
 
+  LL_final(pp)  = -likeli(pp, Data, Data_missing, H_sel, priors, meas_error, 
+                          meas_error_std, sr, lr, m_par, e_set)[3]
+  
+  posterior_mode = -LL_final(par_final)
+  println("Likelihood at mode under ... reduction")
+  println("old: ",ll_old, " new: ", posterior_mode)
+  
   # Run Kalman smoother
-  smoother_output, State2Control, LOMstate =
-    likeli(par_final, Data, Data_missing, H_sel, priors,
-      meas_error, meas_error_std, sr, lr, m_par, e_set; smoother = true)
-
-  # Intermediate save just because computing the hessian takes so long
-  hessian_final = Matrix{Float64}(I, length(par_final), length(par_final))
-  # @save e_set.save_mode_file par_final hessian_final posterior_mode meas_error meas_error_std parnames Data Data_missing H_sel priors smoother_output sr lr m_par e_set
+  smoother_output = likeli(par_final, Data, Data_missing, H_sel, priors,
+                           meas_error, meas_error_std, sr, lr, m_par, 
+                           e_set; smoother = true)
 
   # Compute Hessian at posterior mode
   if e_set.compute_hessian == true
     if sr.n_par.verbose
       println("Computing Hessian. This might take a while...")
     end
+    func          = TwiceDifferentiable(pp -> LL_final(pp), par_final)
     hessian_final = Optim.hessian!(func, par_final)
-  elseif e_set.compute_hessian == false
-    HANKEstim.@load "7_Saves/parameter_example.jld2" hessian_final
+  else 
+    if sr.n_par.verbose
+      println("Assuming Hessian is I...")
+    end
+    hessian_final = Matrix{Float64}(I, length(par_final), length(par_final))
   end
 
-  return par_final, hessian_final, posterior_mode, meas_error, meas_error_std, parnames, Data, Data_missing, H_sel, priors, smoother_output, m_par
+  return par_final, hessian_final, posterior_mode, meas_error, meas_error_std, parnames, 
+          Data, Data_missing, H_sel, priors, smoother_output, m_par, sr, lr
 end

@@ -1,11 +1,11 @@
 # __precompile__(false)
-# Code runs on Julia 1.6
+# Code runs on Julia 1.7.1
 # ------------------------------------------------------------------------------
 ## Package Calls
 # ------------------------------------------------------------------------------
 # Packages used: Plots Distributions BenchmarkTools JLD2 FileIO DataFrames ForwardDiff
-# SparseArrays LinearAlgebra Random LaTeXStrings MatrixEquations Roots KrylovKit JSON
-# SpecialFunctions FFTW Parameters Setfield MCMCChains StatsPlots Optim CSV 
+# SparseArrays LinearAlgebra Random LaTeXStrings MatrixEquations Roots KrylovKit JSON 
+# CodecZlib SpecialFunctions FFTW Parameters Setfield MCMCChains StatsPlots Optim CSV 
 # OrderedCollections Flatten FieldMetadata MKL
 
 module HANKEstim
@@ -15,7 +15,7 @@ if !Sys.isapple() # issues encountered when using mkl with macos + more than 1 t
 end
 using Plots, Distributions, BenchmarkTools, JLD2, FileIO, DataFrames, ForwardDiff
 using SparseArrays, LinearAlgebra, Random, LaTeXStrings, MatrixEquations
-using Roots, KrylovKit, JSON
+using Roots, KrylovKit, JSON, CodecZlib
 using SpecialFunctions: erf
 using FFTW: dct
 using Parameters, Setfield, MCMCChains, StatsPlots, Optim, CSV, OrderedCollections
@@ -24,8 +24,8 @@ import Flatten: flattenable
 export ModelParameters, NumericalParameters, EstimationSettings,
     SteadyResults, LinearResults, EstimResults,
     compute_steadystate, linearize_full_model, model_reduction, update_model,
-    find_mode, montecarlo, mode, metaflatten, prior,
-    @set!, @save, @load,
+    find_mode, montecarlo, mode, metaflatten, prior, compare_2_linearizations,
+    @set!, jldsave, @load,
     @writeXSS, @make_fn, @make_fnaggr, @make_struct, @make_struct_aggr,
     @generate_equations
 
@@ -38,7 +38,7 @@ include("1_Model/Parameters.jl")
 include("3_NumericalBasics/Structs.jl")
 include("6_Estimation/prior.jl")
 
-e_set = EstimationSettings()
+e_set = EstimationSettings(shock_names=shock_names)
 @make_struct IndexStruct
 @make_struct_aggr IndexStructAggr
 
@@ -78,7 +78,7 @@ function compute_steadystate(m_par)
     println(length(compressionIndexes[3]))
 
     return SteadyResults(XSS, XSSaggr, indexes, indexes_r, indexes_aggr, compressionIndexes,
-        n_par, m_par, CDF_SS, CDF_m, CDF_k, CDF_y, distrSS)
+        n_par, m_par, CDF_SS, CDF_m, CDF_k, CDF_y, distrSS, state_names, control_names)
 end
 
 @doc raw"""
@@ -143,7 +143,7 @@ function model_reduction(sr, lr, m_par)
     # Reduce further based on importance in dynamics at initial guess 
     if n_par.further_compress
         println("Reduction Step")
-        indexes_r, n_par = compute_reduction(sr, lr, m_par, shock_names)
+        indexes_r, n_par = compute_reduction(sr, lr, m_par, e_set.shock_names)
 
         println("Number of reduced model factors for DCTs for Vm & Vk:")
         println(length(indexes_r.Vm) + length(indexes_r.Vk))
@@ -155,10 +155,13 @@ function model_reduction(sr, lr, m_par)
         @set! n_par.PRightAll = float(I[1:n_par.ntotal, 1:n_par.ntotal])
         @set! n_par.PRightStates = float(I[1:n_par.nstates, 1:n_par.nstates])
         indexes_r = sr.indexes
+        @set! n_par.nstates_r = n_par.nstates
+        @set! n_par.ncontrols_r = n_par.ncontrols
+        @set! n_par.ntotal_r = n_par.ntotal
     end
 
     return SteadyResults(sr.XSS, sr.XSSaggr, sr.indexes, indexes_r, sr.indexes_aggr, sr.compressionIndexes,
-        n_par, m_par, sr.CDF_SS, sr.CDF_m, sr.CDF_k, sr.CDF_y, sr.distrSS)
+        n_par, m_par, sr.CDF_SS, sr.CDF_m, sr.CDF_k, sr.CDF_y, sr.distrSS, state_names, control_names)
 end
 
 
@@ -185,12 +188,13 @@ function find_mode(sr::SteadyResults, lr::LinearResults, m_par::ModelParameters)
         end
         par_start = mode.(priors)
     else
-        @load e_set.mode_start_file par_final
-        par_start = copy(par_final)
+        @load e_set.mode_start_file er_mode
+        par_start = copy(er_mode.par_final)
     end
     par_final, hessian_final, posterior_mode, meas_error, meas_error_std,
-    parnames, Data, Data_missing, H_sel, priors, smoother_output, m_par =
+    parnames, Data, Data_missing, H_sel, priors, smoother_output, m_par, sr, lr =
         mode_finding(sr, lr, m_par, e_set, par_start)
+
     if sr.n_par.verbose
         println("Mode finding finished.")
     end
@@ -199,7 +203,7 @@ function find_mode(sr::SteadyResults, lr::LinearResults, m_par::ModelParameters)
 
     er = EstimResults(par_final, hessian_final, meas_error, meas_error_std, parnames, Data, Data_missing, H_sel, priors)
     
-    return er, posterior_mode, smoother_output, sr, lr, m_par, e_set
+    return er, posterior_mode, smoother_output, sr, lr, m_par
 end
 
 
@@ -221,7 +225,7 @@ function montecarlo(sr::SteadyResults, lr::LinearResults, er::EstimResults, m_pa
         println("Started MCMC. This might take a while...")
     end
     if e_set.multi_chain_init == true
-        init_draw, init_success, init_iter = multi_chain_init(er.par_final, hessian_sym, sr, lr, er, m_par, e_set)
+        init_draw, init_success = multi_chain_init(er.par_final, hessian_sym, sr, lr, er, m_par, e_set)
 
         par_final = init_draw
         if init_success == false
@@ -233,8 +237,6 @@ function montecarlo(sr::SteadyResults, lr::LinearResults, er::EstimResults, m_pa
 
     draws_raw, posterior, accept_rate = rwmh(par_final, hessian_sym, sr, lr, er, m_par, e_set)
 
-    draws = draws_raw[e_set.burnin+1:end, :]
-
     ##
     parnames_ascii = collect(metaflatten(m_par, label))
     if e_set.me_treatment != :fixed
@@ -243,84 +245,26 @@ function montecarlo(sr::SteadyResults, lr::LinearResults, er::EstimResults, m_pa
         end
     end
 
-    chn = Chains(reshape(draws, (size(draws)..., 1)), [string(parnames_ascii[i]) for i = 1:length(parnames_ascii)])
+    chn         = Chains(reshape(draws_raw[e_set.burnin+1:end, :], (size(draws_raw[e_set.burnin+1:end, :])..., 1)), 
+                        [string(parnames_ascii[i]) for i = 1:length(parnames_ascii)])
     chn_summary = summarize(chn)
-    par_final = chn_summary[:, :mean]
+    par_final   = chn_summary[:, :mean]
 
     ##
     if e_set.me_treatment != :fixed
-        m_par = Flatten.reconstruct(m_par, par_final[1:length(par_final)-length(er.meas_error)])
+        m_par   = Flatten.reconstruct(m_par, par_final[1:length(par_final)-length(er.meas_error)])
     else
-        m_par = Flatten.reconstruct(m_par, par_final)
+        m_par   = Flatten.reconstruct(m_par, par_final)
     end
-    State2Control, LOMstate, alarm_sgu, nk = SGU_estim(sr, m_par, lr.A, lr.B; estim = true)
+    
+    lr          = update_model(sr, lr, m_par)
 
     smoother_output = likeli(par_final, sr, lr, er, m_par, e_set; smoother = true)
 
     if sr.n_par.verbose
         println("MCMC finished.")
     end
-    ##
-    # @save file draws_raw accept_rate aggr_names_ascii aggr_names state_names_ascii state_names control_names control_names_ascii e_set er.Data State2Control LOMstate er.parnames sr.indexes sr.indexes_aggr par_final m_par lr.A lr.B hessian_sym sr.n_par draws posterior er.hessian_final er.meas_error er.meas_error_std er.Data_missing er.H_sel er.priors smoother_output
-    save(file, Dict(
-        "draws_raw" => draws_raw,
-        "accept_rate" => accept_rate,
-        "aggr_names_ascii" => aggr_names_ascii,
-        "aggr_names" => aggr_names,
-        "state_names_ascii" => state_names_ascii,
-        "state_names" => state_names,
-        "control_names" => control_names,
-        "control_names_ascii" => control_names_ascii,
-        "e_set" => e_set,
-        "Data" => er.Data,
-        "State2Control" => State2Control,
-        "LOMstate" => LOMstate,
-        "parnames" => er.parnames,
-        "indexes" => sr.indexes_r,
-        "indexes_aggr" => sr.indexes_aggr,
-        "par_final" => par_final,
-        "m_par" => m_par,
-        "A" => lr.A,
-        "B" => lr.B,
-        "hessian_sym" => hessian_sym,
-        "n_par" => sr.n_par,
-        "draws" => draws,
-        "posterior" => posterior,
-        "hessian_final" => er.hessian_final,
-        "meas_error" => er.meas_error,
-        "meas_error_std" => er.meas_error_std,
-        "Data_missing" => er.Data_missing,
-        "H_sel" => er.H_sel,
-        "priors" => er.priors,
-        "smoother_output" => smoother_output
-    ))
+    return sr, lr, er,  m_par, draws_raw, posterior, accept_rate, par_final, hessian_sym, smoother_output
 end
 
 end # module HANKEstim
-
-
-# function load_mode(sr::SteadyResults;file::String = e_set.mode_start_file)
-#     @load file par_final hessian_final meas_error meas_error_std parnames Data Data_missing H_sel priors
-
-#     # Load data
-#     Data_temp = DataFrame(CSV.File(e_set.data_file; missingstring = "NaN"))
-#     data_names_temp = propertynames(Data_temp)
-#     for i in data_names_temp
-#         name_temp = get(e_set.data_rename, i, :none)
-#         if name_temp != :none
-#             rename!(Data_temp, Dict(i=>name_temp))
-#         end
-#     end
-
-#     observed_vars = e_set.observed_vars_input
-#     Data = Matrix(Data_temp[:, observed_vars])
-#     Data_missing = ismissing.(Data)
-#     nobservables = size(Data)[2]
-
-#     H_sel = zeros(nobservables, sr.n_par.nstates_r + sr.n_par.ncontrols_r)
-#     for i in eachindex(observed_vars)
-#       H_sel[i,   getfield(sr.indexes_r,(observed_vars[i]))]  = 1.0
-#     end
-
-#     return EstimResults(par_final, hessian_final, meas_error, meas_error_std, parnames, Data, Data_missing, H_sel, priors)
-# end

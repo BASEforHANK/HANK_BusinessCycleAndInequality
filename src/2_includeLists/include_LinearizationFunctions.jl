@@ -6,3 +6,5 @@ include("../5_LinearizationFunctions/SGU_estim.jl")
 include("../5_LinearizationFunctions/SolveDiffEq.jl")
 include("../5_LinearizationFunctions/compute_reduction.jl")
 include("../5_LinearizationFunctions/Shuffle.jl")
+include("../5_LinearizationFunctions/compare_2_linearizations.jl")
+

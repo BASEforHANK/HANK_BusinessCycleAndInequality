@@ -14,7 +14,7 @@ function likeli(par, Data, Data_missing, H_sel, priors, meas_error, meas_error_s
     sr, lr, m_par, e_set; smoother = false)
 
     return likeli_backend(par, Data, Data_missing, H_sel, priors, meas_error, meas_error_std,
-        sr, lr, m_par, e_set; smoother = false)
+        sr, lr, m_par, e_set, smoother)
 end
 
 @doc raw"""
@@ -33,11 +33,11 @@ Solve model with [`SGU_estim()`](@ref), compute likelihood with [`kalman_filter(
 function likeli(par, sr, lr, er, m_par, e_set; smoother = false)
 
     return likeli_backend(par, er.Data, er.Data_missing, er.H_sel, er.priors, er.meas_error, er.meas_error_std,
-        sr, lr, m_par, e_set; smoother = false)
+        sr, lr, m_par, e_set, smoother)
 end
 
 function likeli_backend(par, Data, Data_missing, H_sel, priors, meas_error, meas_error_std,
-    sr, lr, m_par, e_set; smoother = false)
+    sr, lr, m_par, e_set, smoother)
 
     # check priors, abort if they are violated
     prior_like::eltype(par), alarm_prior::Bool = prioreval(Tuple(par), Tuple(priors))
@@ -47,7 +47,7 @@ function likeli_backend(par, Data, Data_missing, H_sel, priors, meas_error, meas
         alarm = true
         State2Control = zeros(sr.n_par.ncontrols_r, sr.n_par.nstates_r)
         if e_set.debug_print
-            println("PRIOR")
+            println("Parameter try violates PRIOR")
         end
     else
         if e_set.me_treatment != :fixed
@@ -92,7 +92,7 @@ function likeli_backend(par, Data, Data_missing, H_sel, priors, meas_error, meas
             log_like = -9.e15
             alarm = true
             if e_set.debug_print
-                println("SGU")
+                println("Parameter try leads to inexistent or unstable equilibrium")
             end
         else
             MX = [I; State2Control]
@@ -111,7 +111,7 @@ function likeli_backend(par, Data, Data_missing, H_sel, priors, meas_error, meas
     if smoother == false
         return log_like, prior_like, post_like, alarm, State2Control
     else
-        return smoother_output, State2Control, LOM
+        return smoother_output
     end
 
 end

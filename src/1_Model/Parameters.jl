@@ -129,7 +129,7 @@ julia> n_par = NumericalParameters(mmin = -6.6, mmax = 1000)
 	mmax::Float64      	= 1750.0    # gridmax bonds
 	ϵ::Float64         	= 1.0e-11 	# precision of solution 
 	
-	sol_algo::Symbol   	   = :schur # options: :schur (Klein's method), :litx (accelerated linear time iteration)
+	sol_algo::Symbol   	   = :schur # options: :schur (Klein's method), :lit (linear time iteration), :litx (linear time iteration with Howard improvement)
 	verbose::Bool		   = true   # verbose model
 	reduc_value::Float64   = 1e-6   # Lost fraction of "energy" in the DCT compression for value functions
 	reduc_copula::Integer  = 30     # maximal sum of polynomial degrees used in copula perturbations
@@ -198,7 +198,7 @@ Use package `Parameters` to provide initial values. Input and output file names 
 stored in the fields `mode_start_file`, `data_file`, `save_mode_file` and `save_posterior_file`.
 """
 @with_kw struct EstimationSettings
-	shock_names::Array{Symbol, 1} 			= [:A, :Z, :ZI, :μ, :μw, :Gshock, :Rshock, :Sshock, :Tprogshock]
+	shock_names::Array{Symbol, 1} 			= shock_names # set in 1_Model/input_aggregate_names.jl
 	observed_vars_input::Array{Symbol, 1} 	= [:Ygrowth, :Igrowth, :Cgrowth, :N, :wgrowth, :RB,  :π, :TOP10Wshare, :TOP10Ishare, :τprog, :σ]
 
 	# Alternative model versions / shock structures commented out
@@ -225,17 +225,16 @@ stored in the fields `mode_start_file`, `data_file`, `save_mode_file` and `save_
 
 	estimate_model::Bool 					= true
 
-	mode_compute::Bool 						= true
-	max_iter_mode::Int 						= 100
+	max_iter_mode::Int 						= 15000 
 	optimizer::Optim.AbstractOptimizer      = NelderMead()
-	compute_hessian::Bool 					= true    # Loads hessian for example parameter space. Please re-compute when changing estimated parameters.
-	f_tol::Float64							= 1.0e-2
-	x_tol::Float64							= 1.0e-2
+	compute_hessian::Bool 					= true    # true: computes Hessian at posterior mode; false: sets Hessian to identity matrix
+	f_tol::Float64							= 1.0e-4
+	x_tol::Float64							= 1.0e-4
 
-	multi_chain_init::Bool 					= false
-	ndraws::Int      						= 50
-	burnin::Int      						= 50
-	mhscale::Float64 						= 0.4
+	multi_chain_init::Bool 					= true
+	ndraws::Int      						= 10000
+	burnin::Int      						= 500
+	mhscale::Float64 						= 0.35
 	debug_print::Bool 						= true
 
 end

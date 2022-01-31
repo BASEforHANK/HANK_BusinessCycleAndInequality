@@ -65,8 +65,7 @@ HANKEstim.measurement_error
 ```@docs
 montecarlo
 ```
-We use a Monte Carlo Markov Chain method, specifically the Random-Walk Metropolis Hastings ([`HANKEstim.rwmh()`](@ref)) algorithm, to sample from the posterior probability distribution of the parameter vector. To obtain the
-posterior likelihood of each draw, we call [`HANKEstim.likeli()`](@ref), which evaluates the priors at `par` ([`HANKEstim.prioreval()`](@ref)) and returns the log-posterior as a sum of the log-prior and the log-likelihood.
+We use a Monte Carlo Markov Chain method, specifically the Random-Walk Metropolis Hastings ([`HANKEstim.rwmh()`](@ref)) algorithm, to sample from the posterior probability distribution of the parameter vector. The acceptance rate of the algorithm can be adjusted via setting `EstimationSettings.mhscale`. To obtain the posterior likelihood of each draw, we call [`HANKEstim.likeli()`](@ref), which evaluates the priors at `par` ([`HANKEstim.prioreval()`](@ref)) and returns the log-posterior as a sum of the log-prior and the log-likelihood.
 
 Given the draws from the posterior, we can analyze the probabilities of the parameters using the package `MCMCChains`. We take the average over the draws as our Bayesian estimate of the parameter vector, `par_final`. To obtain an estimate of the underlying state over the data sample period, we call [`HANKEstim.likeli()`](@ref) with `par_final` and keyword `smoother=true` (this calls the Kalman smoother [`HANKEstim.kalman_filter_smoother()`](@ref)). The result is stored in `smoother_output`, and saved with the other results in `e_set.save_posterior_file`.
 
