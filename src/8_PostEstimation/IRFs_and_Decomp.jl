@@ -51,15 +51,120 @@ function compute_irfs_vardecomp(models, select_variables)
         end
         IRFs_aux[isstate, 1:end-1, :] .= IRFs_aux[isstate, 2:end, :] # IRFs for state variables represent end-of-period values
         # Dimensions of IRF: variable x time x shock
-        VARdecomp = zeros(size(IRFs_aux))
-        for i = 1:n_shocks
-            VARdecomp[:, :, i] = cumsum(IRFs_aux[:, :, i] .^ 2.0, dims = 2) ./ (sum(cumsum(IRFs_aux .^ 2.0, dims = 2), dims = 3) .+ 10.0 * eps())
-        end
+        # VARdecomp = zeros(size(IRFs_aux))
+        
+        VARdecomp = cumsum(IRFs_aux .^ 2.0, dims = 2) ./ (sum(cumsum(IRFs_aux .^ 2.0, dims = 2), dims = 3) .+ 10.0 * eps())
+        
         VDs[j] = 100.0 .* VARdecomp
         IRFs[j] = 100.0 .* IRFs_aux
 
     end
     return IRFs, VDs, SHOCKs
+
+end
+
+function compute_vardecomp_bounds(models, select_variables, select_vd_horizons, model_names; n_replic = 1000, percentile_bounds = (0.05, 0.95))
+
+    VDorig, SHOCKs = compute_irfs_vardecomp(models, select_variables)[2:3]
+    max_horizon = maximum(select_vd_horizons)
+    n_models = length(models)
+    VD_lower = Array{Array{Float64}}(undef, n_models)
+    VD_upper = Array{Array{Float64}}(undef, n_models)
+
+    n_shocks = length(SHOCKs)
+    for j = 1:n_models
+        sr = models[j][1]
+        lr = models[j][2]
+        e_set = models[j][3]
+        m_par = models[j][4]
+        draws = models[j][5]
+        selector = []
+        isstate = zeros(Bool, length(select_variables))
+        iter = 1
+        for i in select_variables
+            if i in Symbol.(sr.state_names)
+                isstate[iter] .= true
+            end
+            iter += 1
+            try
+                append!(selector, getfield(sr.indexes_r, i))
+            catch
+                append!(selector, sr.ntotal_r + 1)
+            end
+        end
+        VDaux = hcat([zeros(n_replic) for j = 1:length(select_variables), i = 1:max_horizon, k = 1:n_shocks])
+        draw_ind = rand(1:size(draws, 1), n_replic)
+        for s = 1:length(draw_ind)
+            dd = draws[draw_ind[s], :]
+            if e_set.me_treatment != :fixed
+                m_par = Flatten.reconstruct(m_par, dd[1:length(par_final)-length(e_set.meas_error_input)])
+            else
+                m_par = Flatten.reconstruct(m_par, dd)
+            end
+            lr = update_model(sr, lr, m_par)
+    
+            IRFs_aux = zeros(length(selector), max_horizon, n_shocks)
+            shock_number = 0
+            for i in SHOCKs
+                x = zeros(size(lr.LOMstate, 1))
+                shock_number += 1
+                try
+                    x[getfield(sr.indexes_r, i)] = getfield(m_par, Symbol("σ_", i))
+                catch
+                    println("model ", j, " has no shock ", string(i))
+                end
+                MX = [I; lr.State2Control; zeros(1, sr.n_par.nstates_r)]
+                for t = 1:max_horizon
+                    IRFs_aux[:, t, shock_number] = MX[selector, :] * x
+                    x[:] = lr.LOMstate * x
+                end
+            end
+            IRFs_aux[isstate, 1:end-1, :] .= IRFs_aux[isstate, 2:end, :] # IRFs for state variables represent end-of-period values
+            # Dimensions of IRF: variable x time x shock
+    
+            VDauxaux = 100 .* cumsum(IRFs_aux .^ 2.0, dims = 2) ./ (sum(cumsum(IRFs_aux .^ 2.0, dims = 2), dims = 3) .+ 10.0 * eps())
+            for d1 = 1:length(select_variables)
+                for d2 = 1:max_horizon
+                    for d3 = 1:n_shocks
+                        VDaux[d1, d2, d3][s] = VDauxaux[d1, d2, d3]
+                    end
+                end
+            end
+        end
+    
+        VD_lower[j] = quantile.(VDaux, percentile_bounds[1])
+        VD_upper[j] = quantile.(VDaux, percentile_bounds[2])
+    end
+    n_total_entries = n_models * length(select_variables) * length(select_vd_horizons) * n_shocks
+    modelname_vec = Vector{String}(undef, n_total_entries)
+    variablename_vec = Vector{Symbol}(undef, n_total_entries)
+    horizonname_vec = Vector{Int}(undef, n_total_entries)
+    shockname_vec = Vector{Symbol}(undef, n_total_entries)
+    VD_vec = Vector{Float64}(undef, n_total_entries)
+    VDlow_vec = Vector{Float64}(undef, n_total_entries)
+    VDup_vec = Vector{Float64}(undef, n_total_entries)
+    count = 1
+    for d0 = 1:n_models
+        for d1 = 1:length(select_variables)
+            for d2 in select_vd_horizons
+                for d3 = 1:n_shocks
+                    modelname_vec[count] = model_names[d0]
+                    variablename_vec[count] = select_variables[d1]
+                    horizonname_vec[count] = d2
+                    shockname_vec[count] = SHOCKs[d3]
+                    VD_vec[count] = copy(VDorig[d0][d1, d2, d3])
+                    VDlow_vec[count] = copy(VD_lower[d0][d1, d2, d3])
+                    VDup_vec[count] = copy(VD_upper[d0][d1, d2, d3])
+
+                    count += 1
+                end
+            end
+        end
+    end
+    VDdf = DataFrame(model = modelname_vec, variable = variablename_vec, horizon = horizonname_vec,
+        shock = shockname_vec, lower_bound = VDlow_vec, point_estimate = VD_vec, upper_bound = VDup_vec)
+
+    return VDdf
 
 end
 

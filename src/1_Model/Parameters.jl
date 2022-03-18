@@ -217,7 +217,7 @@ stored in the fields `mode_start_file`, `data_file`, `save_mode_file` and `save_
 	meas_error_distr::Array{InverseGamma{Float64}, 1} = [InverseGamma(ig_pars(0.0005, 0.001^2)...), InverseGamma(ig_pars(0.0005, 0.001^2)...), InverseGamma(ig_pars(0.0005, 0.001^2)...), InverseGamma(ig_pars(0.05, 0.01^2)...)]
 
 	# Leave empty to start with prior mode
-	mode_start_file::String 				= "" #"7_Saves/parameter_example.jld2" 
+	mode_start_file::String 				= ""
 
 	data_file::String 						= "bbl_data_inequality.csv"
 	save_mode_file::String 					= "7_Saves/HANKX_mode.jld2"

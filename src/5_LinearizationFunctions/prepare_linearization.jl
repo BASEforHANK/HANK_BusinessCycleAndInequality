@@ -141,7 +141,7 @@ function copula_marg_equi_y(distr_i, grid_i, nx)
 
     x2 = 1.0
     for i = 2:nx-1
-        equi(x1)            = equishares(x1, x2, grid_i[1:end-1], distr_i[1:end-1], nx) 
+        equi(x1)            = equishares(x1, x2, grid_i[1:end-1], distr_i[1:end-1], nx-1) 
         x2                  = find_zero(equi, (1e-9, x2))
         aux_marginal[end-i] = x2
     end
@@ -193,7 +193,7 @@ function equishares(x1, x2, grid_i, distr_i, nx)
         
     FN_Wshares = cumsum(grid_i .* distr_i) ./ sum(grid_i .* distr_i)
     Wshares    = diff(mylinearinterpolate(cumsum(distr_i), FN_Wshares, [x1; x2]))
-    dev_equi   = Wshares .- 1.0 ./ (nx .- 1)
+    dev_equi   = Wshares .- 1.0 ./ nx
 
     return dev_equi
 end
