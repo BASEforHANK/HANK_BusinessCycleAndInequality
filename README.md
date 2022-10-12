@@ -1,6 +1,6 @@
 # HANKEstim Toolbox
 
-**Major update coming soon!**
+**Major update coming soon! All new developments will happen at https://github.com/BASEforHANK**
 
 Toolbox for estimating medium-scale HANK models based on "Shocks, Frictions, and Inequality in US Business Cycles" by Christian Bayer, Benjamin Born and Ralph Luetticke ([link to paper](https://www.benjaminborn.de/publication/bbl_inequality_2020/)).
 
